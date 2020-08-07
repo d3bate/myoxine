@@ -1,0 +1,15 @@
+[workspace]
+members=[
+    # macros (pre-processing)
+    "macros/parser",
+    "macros/macros",
+    "macros/optimiser",
+    # runtime crates
+    "runtime/myoxine",
+    "runtime/cache",
+    "runtime/yew",
+    "runtime/executor",
+    "runtime/query",
+    # command line interface
+    "cli"
+]
