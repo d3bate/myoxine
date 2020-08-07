@@ -4,7 +4,7 @@ Built with love and the hope that you'll use this software for good by d3bate.
 This file is distributed subject to the terms of the Mozilla Public License (2.0).
 A copy of the license can be found at the root of this Git repository.
 
-This file contains a GraphQL parser, which should conform to the GraphQL spec.
+This file contains a GraphQL ast, which should conform to the GraphQL spec.
 The exact spec used can be found at https://web.archive.org/web/20200721161858/http://spec.graphql.org/draft/
 
 PRs to bring it up to date if the spec changes are welcome.

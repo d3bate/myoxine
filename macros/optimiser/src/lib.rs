@@ -5,7 +5,7 @@
 //! Doesn't do much at the moment.
 
 /// Optimise a query.
-pub fn optimise(query: ()) -> () {}
+pub fn optimise(_query: ()) -> () {}
 
 #[cfg(test)]
 mod tests {

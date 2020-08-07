@@ -5,7 +5,8 @@ This file is distributed subject to the terms of the Mozilla Public License (2.0
 A copy of the license can be found at the root of this Git repository.
 */
 
-//! Contains a GraphQL schema parser.
+//! Contains an AST for a GraphQL schema. This is used to conduct operations on externally defined
+//! files.
 //!
 //! As is our approach to all documentation in this project – if you don't understand something,
 //! please do ask! That way we can improve the documentation for everyone and make it easier to

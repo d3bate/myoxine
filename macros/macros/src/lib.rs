@@ -1,4 +1,5 @@
 //! Useful macros for creating GraphQL queries inside applications.
+
 mod mutation;
 mod query;
 
@@ -24,7 +25,7 @@ extern crate proc_macro;
 /// The macro will output an item implementing `Query`. Many of the functions and
 /// methods Myoxine provides have trait bounds which restrict them to take anything
 /// implementing `Query`.
-pub fn query(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn query(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     todo!()
 }
 
@@ -44,7 +45,7 @@ pub fn query(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///     }
 /// }
 /// ```
-pub fn mutation(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn mutation(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     todo!()
 }
 

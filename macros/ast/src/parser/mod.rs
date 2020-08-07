@@ -7,20 +7,21 @@ A copy of the license can be found at the root of this Git repository.
 
 //! Parses GraphQL schema files.
 //!
-//! This is useful for compile-time type checking. You might also find this parser useful in other
-//! projects, but if you're interested in speed we'd suggest you use a different parser.
+//! This is useful for compile-time type checking. You might also find this ast useful in other
+//! projects, but if you're interested in speed we'd suggest you use a different ast.
 //!
 //! If you're unsure about any of the code in this file, please do ask about it!
 
 use pest::error::{Error, ErrorVariant};
 use pest::iterators::{Pair};
 use std::convert::TryFrom;
+use serde::{Serialize, Deserialize};
 
 #[derive(Parser)]
 #[grammar = "graphql.pest"]
 pub struct GraphQLParser;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Name(String);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Name {
@@ -31,7 +32,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Name {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum OperationType {
     Query,
     Mutation,
@@ -47,13 +48,13 @@ impl<'a> TryFrom<Pair<'a, Rule>> for OperationType {
             "mutation" => Ok(Self::Mutation),
             "subscription" => Ok(Self::Subscription),
             _ => panic!(
-                "Internal parser error. Please report this to https://github.com/d3bate/myoxine"
+                "Internal ast error. Please report this to https://github.com/d3bate/myoxine"
             ),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct NamedType(pub String);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for NamedType {
@@ -64,7 +65,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for NamedType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct RootOperationTypeDefinition {
     /// The name of the operation (either "schema", "mutation" or "subscription").
     /// NOTE: GraphQL subscriptions are not currently supported, although support is planned.
@@ -85,7 +86,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for RootOperationTypeDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Argument {
     name: Name,
     value: Value,
@@ -103,7 +104,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Argument {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Arguments(pub Vec<Argument>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Arguments {
@@ -119,7 +120,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Arguments {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Directive {
     name: Name,
     arguments: Option<Arguments>,
@@ -140,7 +141,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Directive {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Directives(Vec<Directive>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Directives {
@@ -156,7 +157,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Directives {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct SchemaDefinition {
     /// Describes the schema.
     description: Option<Description>,
@@ -251,7 +252,7 @@ impl Default for SchemaDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum TypeDefinition {
     ScalarTypeDefinition(ScalarTypeDefinition),
     ObjectTypeDefinition(ObjectTypeDefinition),
@@ -291,7 +292,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for TypeDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct ScalarTypeDefinition {
     description: Option<Description>,
     name: Name,
@@ -334,7 +335,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ScalarTypeDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct ScalarTypeExtension {
     name: Name,
     directives: Option<Directives>,
@@ -357,7 +358,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ScalarTypeExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct ImplementsInterfaces(Vec<NamedType>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for ImplementsInterfaces {
@@ -372,7 +373,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ImplementsInterfaces {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Description(pub String);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Description {
@@ -383,7 +384,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Description {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum GraphQLType {
     NamedType(NamedType),
     ListType(Box<GraphQLType>),
@@ -407,7 +408,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for GraphQLType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct ArgumentsDefinition(pub Vec<InputValueDefinition>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for ArgumentsDefinition {
@@ -423,7 +424,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ArgumentsDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Alias {
     name: Name,
 }
@@ -438,7 +439,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Alias {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Field {
     alias: Option<Alias>,
     name: Name,
@@ -485,7 +486,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Field {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct FieldDefinition {
     description: Option<Description>,
     name: Name,
@@ -520,7 +521,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FieldDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct FieldsDefinition(pub Vec<FieldDefinition>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for FieldsDefinition {
@@ -535,7 +536,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FieldsDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct ObjectTypeDefinition {
     description: Option<Description>,
     name: Name,
@@ -580,7 +581,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ObjectTypeDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct InterfaceTypeDefinition {
     description: Option<Description>,
     name: Name,
@@ -625,7 +626,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InterfaceTypeDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct UnionTypeDefinition {
     description: Option<Description>,
     name: Name,
@@ -658,7 +659,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for UnionTypeDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct UnionMemberTypes(pub Vec<NamedType>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for UnionMemberTypes {
@@ -674,7 +675,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for UnionMemberTypes {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct EnumTypeDefinition {
     description: Option<Description>,
     name: Name,
@@ -707,7 +708,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for EnumTypeDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct EnumValuesDefinition(pub Vec<EnumValueDefinition>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for EnumValuesDefinition {
@@ -723,7 +724,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for EnumValuesDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct EnumValueDefinition {
     description: Option<Description>,
     enum_value: EnumValue,
@@ -753,7 +754,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for EnumValueDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct EnumValue(pub Name);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for EnumValue {
@@ -764,7 +765,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for EnumValue {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct InputObjectTypeDefinition {
     description: Option<Description>,
     name: Name,
@@ -807,7 +808,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InputObjectTypeDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct InputFieldsDefinition(pub Vec<InputValueDefinition>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for InputFieldsDefinition {
@@ -823,7 +824,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InputFieldsDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct InputValueDefinition {
     description: Option<Description>,
     name: Name,
@@ -862,7 +863,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InputValueDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct DefaultValue(pub Value);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for DefaultValue {
@@ -873,7 +874,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for DefaultValue {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct ListValue(Vec<Value>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for ListValue {
@@ -889,7 +890,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ListValue {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct ObjectValue(pub ObjectField);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for ObjectValue {
@@ -902,7 +903,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ObjectValue {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct ObjectField {
     name: Name,
     value: Value,
@@ -920,7 +921,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ObjectField {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Variable(pub Name);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Variable {
@@ -931,7 +932,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Variable {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum Value {
     Variable(Variable),
     Int(i64),
@@ -992,7 +993,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Value {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum UnionTypeExtension {
     WithMemberTypes {
         name: Name,
@@ -1038,7 +1039,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for UnionTypeExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum InterfaceTypeExtension {
     WithImplementedInterfaces {
         name: Name,
@@ -1102,7 +1103,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InterfaceTypeExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum ObjectTypeExtension {
     WithFields {
         name: Name,
@@ -1166,7 +1167,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ObjectTypeExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum EnumTypeExtension {
     WithDirectives {
         name: Name,
@@ -1204,7 +1205,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for EnumTypeExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum InputObjectTypeExtension {
     WithDirectives {
         name: Name,
@@ -1243,7 +1244,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InputObjectTypeExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum TypeExtension {
     ScalarTypeExtension(ScalarTypeExtension),
     ObjectTypeExtension(ObjectTypeExtension),
@@ -1282,7 +1283,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for TypeExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct DirectiveDefinition {
     description: Option<Description>,
     name: Name,
@@ -1330,7 +1331,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct DirectiveLocations(pub Vec<DirectiveLocation>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveLocations {
@@ -1345,7 +1346,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveLocations {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum DirectiveLocation {
     ExecutableDirectiveLocation(ExecutableDirectiveLocation),
     TypeSystemDirectiveLocation(TypeSystemDirectiveLocation),
@@ -1369,7 +1370,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveLocation {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum ExecutableDirectiveLocation {
     Query,
     Mutation,
@@ -1399,7 +1400,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ExecutableDirectiveLocation {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum TypeSystemDirectiveLocation {
     Schema,
     Scalar,
@@ -1437,7 +1438,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for TypeSystemDirectiveLocation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct VariableDefinition {
     variable: Variable,
     graphql_type: GraphQLType,
@@ -1471,7 +1472,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for VariableDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct VariableDefinitions(pub Vec<VariableDefinition>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for VariableDefinitions {
@@ -1487,7 +1488,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for VariableDefinitions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 /// A GraphQL operation.
 pub struct OperationDefinition {
     pub operation_type: OperationType,
@@ -1518,7 +1519,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for OperationDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct FragmentName {
     pub name: Name,
 }
@@ -1533,7 +1534,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FragmentName {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct TypeCondition {
     named_type: NamedType,
 }
@@ -1549,7 +1550,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for TypeCondition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct FragmentSpread {
     fragment_name: FragmentName,
     directives: Option<Directives>,
@@ -1570,7 +1571,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FragmentSpread {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct InlineFragment {
     type_condition: Option<TypeCondition>,
     directives: Option<Directives>,
@@ -1596,7 +1597,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InlineFragment {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum Selection {
     Field(Field),
     FragmentSpread(FragmentSpread),
@@ -1618,7 +1619,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Selection {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct SelectionSet(Vec<Selection>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for SelectionSet {
@@ -1639,7 +1640,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for SelectionSet {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 /// A GraphQL fragment.
 pub struct FragmentDefinition {
     fragment_name: FragmentName,
@@ -1665,7 +1666,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FragmentDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum ExecutableDefinition {
     OperationDefinition(OperationDefinition),
     FragmentDefinition(FragmentDefinition),
@@ -1688,7 +1689,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ExecutableDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum TypeSystemDefinition {
     SchemaDefinition(SchemaDefinition),
     TypeDefinition(TypeDefinition),
@@ -1715,7 +1716,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for TypeSystemDefinition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum SchemaExtension {
     WithDirectives {
         directives: Directives,
@@ -1750,7 +1751,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for SchemaExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum TypeSystemExtension {
     SchemaExtension(SchemaExtension),
     TypeExtension(TypeExtension),
@@ -1773,7 +1774,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for TypeSystemExtension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub enum Definition {
     ExecutableDefinition(ExecutableDefinition),
     TypeSystemDefinition(TypeSystemDefinition),
@@ -1800,7 +1801,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Definition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, PartialOrd, Serialize)]
 pub struct Document(Vec<Definition>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Document {
