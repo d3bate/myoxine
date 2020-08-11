@@ -13,9 +13,11 @@ A copy of the license can be found at the root of this Git repository.
 //! If you're unsure about any of the code in this file, please do ask about it!
 
 use pest::error::{Error, ErrorVariant};
-use pest::iterators::{Pair};
+use pest::iterators::Pair;
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
-use serde::{Serialize, Deserialize};
+use std::path::Path;
+use thiserror::Error as ThisError;
 
 #[derive(Parser)]
 #[grammar = "graphql.pest"]
@@ -1814,5 +1816,44 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Document {
             definitions.push(Definition::try_from(item)?);
         }
         Ok(Self(definitions))
+    }
+}
+
+#[derive(ThisError, Debug)]
+/// An error encountered when saving a document to the cache.
+pub enum CacheError {
+    #[error("io error")]
+    IoError(std::io::Error),
+    #[error("data serialization error")]
+    SerializeError(serde_json::Error),
+}
+
+impl Document {
+    pub fn save_to_cache<P>(&self, path: P) -> Result<(), CacheError>
+    where
+        P: AsRef<Path>,
+    {
+        let file = match std::fs::File::open(path) {
+            Ok(t) => t,
+            Err(e) => return Err(CacheError::IoError(e)),
+        };
+        match serde_json::to_writer(file, self) {
+            Ok(_) => Ok(()),
+            Err(e) => return Err(CacheError::SerializeError(e)),
+        }
+    }
+
+    pub fn retrieve_from_cache<P>(path: P) -> Result<Self, CacheError>
+    where
+        P: AsRef<Path>,
+    {
+        let file = match std::fs::File::open(path) {
+            Ok(t) => t,
+            Err(e) => return Err(CacheError::IoError(e)),
+        };
+        match serde_json::from_reader(file) {
+            Ok(t) => Ok(t),
+            Err(e) => return Err(CacheError::SerializeError(e)),
+        }
     }
 }

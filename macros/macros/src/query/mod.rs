@@ -1,3 +1,5 @@
+mod query;
+
 use proc_macro2::TokenStream;
 
 /// The query macro. Note that this is named `query_inner` because it takes types from the

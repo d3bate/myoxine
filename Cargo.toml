@@ -5,10 +5,7 @@ members=[
     "macros/macros",
     "macros/optimiser",
     # runtime crates
-    "runtime/myoxine",
-    "runtime/cache",
-    "runtime/executor",
-    "runtime/query",
+    "runtime",
     # command line interface
     "cli"
 ]

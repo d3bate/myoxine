@@ -14,9 +14,9 @@ A copy of the license can be found at the root of this Git repository.
 
 #[macro_use]
 extern crate pest_derive;
-mod parser;
+mod ast;
+use crate::ast::{Document, GraphQLParser};
 use pest::Parser;
-use crate::parser::{Document, GraphQLParser};
 use std::convert::TryFrom;
 use std::fs::read_to_string;
 use std::path::Path;
@@ -28,7 +28,7 @@ pub enum ParseFileError {
     #[error("couldn't read from the supplied file")]
     FileOpenError(std::io::Error),
     #[error("couldn't parse the supplied file")]
-    ParseError(pest::error::Error<parser::Rule>),
+    ParseError(pest::error::Error<ast::Rule>),
 }
 
 /// Parse a schema from a provided file.
@@ -37,7 +37,7 @@ pub enum ParseFileError {
 ///
 /// If you already have a GraphQL server you can automatically generate a schema, without the need
 /// to create one by hand. This is strongly advised as it will save you a lot of time.
-pub fn parse_file<P>(path: P) -> std::result::Result<parser::Document, ParseFileError>
+pub fn parse_file<P>(path: P) -> std::result::Result<ast::Document, ParseFileError>
 where
     P: AsRef<Path>,
 {
@@ -50,11 +50,11 @@ where
 
 pub fn parse_string<P>(
     string: P,
-) -> std::result::Result<parser::Document, pest::error::Error<parser::Rule>>
+) -> std::result::Result<ast::Document, pest::error::Error<ast::Rule>>
 where
     P: AsRef<str>,
 {
-    let parsed = GraphQLParser::parse(parser::Rule::document, string.as_ref())?
+    let parsed = GraphQLParser::parse(ast::Rule::document, string.as_ref())?
         .next()
         .unwrap();
 

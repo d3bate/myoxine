@@ -8,7 +8,7 @@ extern crate proc_macro;
 #[proc_macro]
 /// A macro for creating GraphQL queries.
 ///
-/// ```rust
+/// ```ignore
 /// use macros::query;
 /// let user_id = 1;
 /// query! {
@@ -31,7 +31,7 @@ pub fn query(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 #[proc_macro]
 /// A macro for generating GraphQL mutations.
-/// ```rust
+/// ```ignore
 /// use macros::mutation;
 /// let user_id = 1;
 /// let value = "Some Value".to_string(); // needs to be able to take ownership of this
