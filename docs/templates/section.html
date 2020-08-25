@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+    <header>
+        <h1>{{section.title}}</h1>
+    </header>
+    <div class="content">
+        <div class="preamble">
+            {{section.content|safe}}
+        </div>
+        {% for page in section.pages %}
+            <p>Hello World!</p>
+        {% endfor %}
+    </div>
+{% endblock content %}

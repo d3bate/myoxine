@@ -1,36 +1,28 @@
+/*
+Built with love and the hope that you'll use this software for good by d3bate.
+
+This file is distributed subject to the terms of the Mozilla Public License (2.0).
+A copy of the license can be found at the root of this Git repository.
+*/
 //! Useful macros for creating GraphQL queries inside applications.
 
+mod check;
 mod mutation;
 mod query;
 
 extern crate proc_macro;
 
-#[proc_macro]
-/// A macro for creating GraphQL queries.
-///
-/// ```ignore
-/// use macros::query;
-/// let user_id = 1;
-/// query! {
-///     {
-///         getUserById(id: user_id) {
-///             id,
-///             name,
-///             email
-///         }
-///     }
-/// }
-/// ```
-///
-/// The macro will output an item implementing `Query`. Many of the functions and
-/// methods Myoxine provides have trait bounds which restrict them to take anything
-/// implementing `Query`.
-pub fn query(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    todo!()
+use crate::query::query_inner;
+use proc_macro::TokenStream;
+
+#[proc_macro_derive(Query)]
+/// A derive macro which implements the `Query` trait on structs.
+pub fn query(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    TokenStream::from(query_inner(input.into()))
 }
 
 #[proc_macro]
-/// A macro for generating GraphQL mutations.
+/// A macros for generating GraphQL mutations.
 /// ```ignore
 /// use macros::mutation;
 /// let user_id = 1;

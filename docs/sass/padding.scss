@@ -1,0 +1,15 @@
+$paddings: (1, 2, 3, 4);
+
+@each $padding in $paddings {
+  .padding-#{$padding} {
+    padding: #{$padding * 2}px;
+  }
+}
+
+$margins: (1, 2, 3, 4);
+
+@each $margin in $margins {
+  .padding-#{$margin} {
+    padding: #{$margin * 2}px;
+  }
+}

@@ -1,6 +1,6 @@
 //! Optimises queries.
 //!
-//! Heavily inspired by the Relay compiler.
+//! Heavily inspired by the Relay macros.
 //!
 //! Doesn't do much at the moment.
 

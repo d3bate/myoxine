@@ -11,12 +11,19 @@ A copy of the license can be found at the root of this Git repository.
 //! Apollo GraphQL.
 
 use std::any::{Any, TypeId};
+use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
+use std::ops::Deref;
+use std::rc::Rc;
 use unsafe_any::UnsafeAny;
 use yew::prelude::*;
 
-#[derive(Debug, Clone)]
+thread_local! {
+    pub(crate) static CACHE: RefCell<Cache> = RefCell::new(Cache::default());
+}
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Event {
     Created,
     Updated,
@@ -31,11 +38,20 @@ pub struct CacheCallback {
 
 pub struct Cache {
     map: anymap::Map,
-    callbacks: HashMap<TypeId, CacheCallback>,
+    callbacks: HashMap<TypeId, Vec<CacheCallback>>,
+}
+
+impl Default for Cache {
+    fn default() -> Self {
+        Self {
+            map: anymap::Map::new(),
+            callbacks: HashMap::default(),
+        }
+    }
 }
 
 impl Cache {
-    /// Calls every
+    /// Inserts and item into the cache and calls all the subscribing callbacks.
     pub fn insert<Q>(&mut self, item: Q)
     where
         Q: Query + 'static + Clone,
@@ -45,28 +61,67 @@ impl Cache {
             .iter()
             .filter(|item| item.0 == &TypeId::of::<Q>())
             .map(|callback| {
-                callback.1.callback.emit(Box::new(item.clone()));
+                callback
+                    .1
+                    .iter()
+                    .map(|callback| callback.callback.emit(Box::new(item.clone())))
+                    .for_each(drop);
             })
             .for_each(drop);
     }
+    /// Register a new callback.
     pub fn register_callback<Q>(&mut self, callback: Callback<Q>, event: Event)
     where
         Q: Query + 'static,
     {
-        self.callbacks.insert(
-            TypeId::of::<Q>(),
-            CacheCallback {
+        if let Some(item) = self
+            .callbacks
+            .iter_mut()
+            .find(|key| key.0 == &TypeId::of::<Q>())
+        {
+            item.1.push(CacheCallback {
                 fires_on: event,
-                callback: callback.reform(|any: Box<dyn Any>| *any.downcast::<Q>().unwrap()),
-            },
-        );
+                callback: callback.reform(|item: Box<dyn Any>| *item.downcast::<Q>().unwrap()),
+            })
+        } else {
+            self.callbacks.insert(TypeId::of::<Q>(), {
+                let mut vec = Vec::new();
+                vec.push(CacheCallback {
+                    fires_on: event,
+                    callback: callback.reform(|any: Box<dyn Any>| *any.downcast::<Q>().unwrap()),
+                });
+                vec
+            });
+        }
     }
+    /// Removes an item from the cache.
     pub fn remove<Q>(&mut self)
     where
         Q: Query + 'static,
     {
         self.callbacks.remove(&TypeId::of::<Q>());
         self.map.remove::<Q>();
+    }
+    pub fn get<Q>(&self) -> Option<&Q>
+    where
+        Q: Query + 'static,
+    {
+        self.map.get::<Q>()
+    }
+    pub fn update<Q>(&mut self, new_value: Q)
+    where
+        Q: Query + 'static + Clone,
+    {
+        // todo: look for parent/child query types
+        // probably needs some unsafe type dynamic type manipulation
+        let mut item = self.map.get_mut::<Q>().unwrap();
+        let mut new_value = new_value.clone();
+        item = &mut new_value;
+        for callback_list in self.callbacks.get(&TypeId::of::<Q>()) {
+            for callback in callback_list {
+                callback.callback.emit(Box::new(item.clone()));
+            }
+        }
     }
 }
 
@@ -77,38 +132,72 @@ pub struct QueryProviderProps<Q>
 where
     Q: Query + Clone,
 {
-    render: Callback<Q>,
+    /// A referenced-counted function which is used to render the results of a query.
+    render: std::rc::Rc<dyn Fn(Option<Q>) -> Html>,
 }
 
 pub struct QueryProvider<Q>
 where
-    Q: Query,
+    Q: Query + Clone + 'static,
 {
+    render: std::rc::Rc<dyn Fn(Option<Q>) -> Html>,
+    _link: ComponentLink<Self>,
     _query: PhantomData<Q>,
+}
+
+pub enum QueryProviderMsg<Q>
+where
+    Q: Query + Clone,
+{
+    Update(Q),
 }
 
 impl<Q: 'static> Component for QueryProvider<Q>
 where
     Q: Query + Clone,
 {
-    type Message = ();
+    type Message = QueryProviderMsg<Q>;
     type Properties = QueryProviderProps<Q>;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        unimplemented!()
+        // attach a callback
+        CACHE.with(|cache| {
+            cache
+                .borrow_mut()
+                .register_callback(link.callback(|q| Self::Message::Update(q)), Event::Updated)
+        });
+        Self {
+            render: props.render,
+            _link: link,
+            _query: PhantomData,
+        }
     }
 
     fn update(&mut self, msg: Self::Message) -> bool {
-        unimplemented!()
+        match msg {
+            // ignore the actual data, just rerender
+            Self::Message::Update(_) => true,
+        }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> bool {
-        unimplemented!()
+    fn change(&mut self, props: Self::Properties) -> bool {
+        // the `render` function can be updated here
+        if Rc::ptr_eq(&props.render, &self.render) {
+            false
+        } else {
+            self.render = props.render;
+            true
+        }
     }
 
     fn view(&self) -> Html {
-        unimplemented!()
+        self.render.deref()(CACHE.with(|cache| match cache.borrow().get::<Q>() {
+            Some(item) => Some(item.clone()),
+            None => None,
+        }))
     }
+
+    fn destroy(&mut self) {}
 }
 
 pub trait Mutation {}

@@ -14,12 +14,13 @@ A copy of the license can be found at the root of this Git repository.
 
 #[macro_use]
 extern crate pest_derive;
-mod ast;
 use crate::ast::{Document, GraphQLParser};
 use pest::Parser;
 use std::convert::TryFrom;
 use std::fs::read_to_string;
 use std::path::Path;
+
+pub mod ast;
 
 use thiserror::Error as ThisError;
 

@@ -5,119 +5,103 @@ This file is distributed subject to the terms of the Mozilla Public License (2.0
 A copy of the license can be found at the root of this Git repository.
 */
 
-//! Parses Rust GraphQL queries.
+//! Implements the `Query` trait on items.
 //!
-//! These are then turned into optimised static queries to be executed at compile time. In the
-//! process of this these queries are also type checked.
+//! This macros currently only handles a subset of the GraphQL specification, so some things might
+//! not work. If you need a feature which isn't yet available there are two options:
+//! 1. Implement it yourself (and then submit a pull request to the project)
+//! 2. Use a supported feature and submit an issue. We do intend to add complete support for all of
+//! the specification so there's a good chance it will be implemented.
 //!
-//! The process is something like:
-//! 1. parse query
-//! 2. check that the query is valid in the context of the schema
-//!    (i) note that the parsed schema is cached in a folder called `.myoxine` to speed up compile
-//!        times as much as is possible.
-//! 3. output the runtime code for the query
-//!
-//! In the future we might also include a derive macro for the `Query` trait.
-use syn::parse::{Parse, ParseStream};
-use syn::Ident;
-use syn::Result;
-use syn::Token;
+//! One nice thing about this part of the codebase is that the entire API is private, so the churn
+//! can be pretty high without causing issues.
 
-/// A struct on which `Query` is to be implemented.
-pub struct QueryInput {
-    /// The name of the struct to be created.
-    output_name: Ident,
-    /// The AST representing the query.
-    query: Query,
+use ast::ast::*;
+use proc_macro2::TokenStream;
+use syn::DeriveInput;
+
+pub struct QueryCodegenMeta {
+    derive_input: syn::DeriveInput,
 }
 
-impl Parse for QueryInput {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            output_name: input.parse::<syn::Ident>()?,
-            query: input.parse::<Query>()?,
+impl QueryCodegenMeta {
+    /// Retrieve the text of the query, if possible.
+    ///
+    /// This might return an error if the `#[query=<x>]` attribute has not been defined on the
+    /// struct or the type of the literal is not correct (should be a string).
+    fn get_query(&self) -> Result<String, syn::Error> {
+        self.derive_input
+            .attrs
+            .iter()
+            .find(|item| {
+                match item.parse_meta().map_err(|_| false).map(|meta| match meta {
+                    syn::Meta::NameValue(name_value) => {
+                        if name_value.path.is_ident("query") {
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                }) {
+                    Ok(t) => t,
+                    Err(e) => e,
+                }
+            })
+            .map(|item| match item.parse_meta().unwrap() {
+                syn::Meta::NameValue(nv) => match nv.lit {
+                    syn::Lit::Str(string) => Ok(string.value()),
+                    _ => Err(syn::Error::new_spanned(
+                        item.tokens.clone(),
+                        "The value of the `#[query=<x>]` attribute should be a string.",
+                    )),
+                },
+                _ => panic!(),
+            })
+            // at some point this should be replaced with some code to return a proper error message
+            // yes writing this comment probably took more time than the code to return that error
+            // message would require
+            .unwrap()
+    }
+}
+
+/// A trait to generate output the Rust code needed for a query.
+pub trait QueryCodegen<META = QueryCodegenMeta> {
+    fn output(&self, meta: &META) -> Result<TokenStream, syn::Error>;
+}
+
+impl QueryCodegen for Document {
+    fn output(&self, meta: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
+        let struct_identifier = meta.derive_input.ident.clone();
+        let literal = meta.get_query()?;
+        Ok(quote::quote! {
+            impl Query for #struct_identifier {
+                fn query() -> String {
+                    #literal
+                }
+            }
         })
     }
 }
 
-/// The query
-pub struct Query {
-    /// Two curly brackets surrounding the content.
-    brace_token: syn::token::Brace,
-    /// The selection to be made.
-    selection: SelectionSet,
-}
-
-impl Parse for Query {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let brace;
-        Ok(Self {
-            brace_token: syn::braced!(brace in input),
-            selection: input.parse::<SelectionSet>()?,
-        })
-    }
-}
-
-/// A selection set.
-pub struct SelectionSet {
-    selection_list: Selections,
-}
-
-impl Parse for SelectionSet {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            selection_list: input.parse::<Selections>()?,
-        })
-    }
-}
-
-/// A list of all the selections in a selection set.
-pub struct Selections(pub Vec<Selection>);
-
-impl Parse for Selections {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let mut output = vec![];
-        while !input.is_empty() {
-            output.push(input.parse::<Selection>()?)
-        }
-        Ok(Self(output))
-    }
-}
-
-/// A member of a selection set.
-pub enum Selection {
-    Field(Field),
-    FragmentSpread,
-    InlineFragment,
-}
-
-impl Parse for Selection {
-    fn parse(input: ParseStream) -> Result<Self> {
+impl QueryCodegen for Definition {
+    fn output(&self, meta: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
         todo!()
     }
 }
 
-/// A GraphQL field.
-pub struct Field {
-    alias: Option<Alias>,
-    name: Ident,
-    selection_set: Option<SelectionSet>,
-}
-
-impl Parse for Field {
-    fn parse(input: ParseStream) -> Result<Self> {
+impl QueryCodegen for ExecutableDefinition {
+    fn output(&self, meta: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
         todo!()
     }
 }
 
-/// A GraphQL Alias
-pub struct Alias {
-    name: Ident,
-    colon: syn::Token![:],
-}
-
-impl Parse for Alias {
-    fn parse(input: ParseStream) -> Result<Self> {
+impl QueryCodegen for OperationDefinition {
+    fn output(&self, meta: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
         todo!()
     }
+}
+
+pub fn query_inner(input: DeriveInput) -> TokenStream {
+    todo!()
 }

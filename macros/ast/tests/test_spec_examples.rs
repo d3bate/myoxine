@@ -8,10 +8,10 @@ A copy of the license can be found at the root of this Git repository.
 //! Tests that all the examples in the GraphQL specification can be parsed. This is done on a
 //! best-effort basis and may lag behind the specification.
 
-use parser;
+use ast::parse_string;
 
 fn assert_parses(input: &str) {
-    let parsed = parser::parse_string(input);
+    let parsed = parse_string(input);
     assert!(parsed.is_ok());
 }
 

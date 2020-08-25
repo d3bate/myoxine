@@ -1,0 +1,17 @@
+.flex {
+  display: flex;
+}
+.v-flex {
+  flex-direction: row;
+}
+.h-flex {
+  flex-direction: column;
+}
+
+$flexes: (10, 20, 25, 30, 33, 40, 50, 60, 66, 70, 75, 80, 90, 100);
+
+@each $flex in $flexes {
+  .flex-#{flex} {
+    flex: $flex;
+  }
+}
