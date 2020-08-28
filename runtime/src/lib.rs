@@ -34,6 +34,9 @@ pub enum Event {
 pub struct CacheCallback {
     fires_on: Event,
     callback: Callback<Box<dyn Any>>,
+    /// The unique ID for this callback. This is used to remove the callback when a component
+    /// unmounts.
+    callback_id: i32
 }
 
 pub struct Cache {
@@ -82,6 +85,7 @@ impl Cache {
             item.1.push(CacheCallback {
                 fires_on: event,
                 callback: callback.reform(|item: Box<dyn Any>| *item.downcast::<Q>().unwrap()),
+                callback_id: item.1.len() as i32
             })
         } else {
             self.callbacks.insert(TypeId::of::<Q>(), {
@@ -89,6 +93,7 @@ impl Cache {
                 vec.push(CacheCallback {
                     fires_on: event,
                     callback: callback.reform(|any: Box<dyn Any>| *any.downcast::<Q>().unwrap()),
+                    callback_id: 0
                 });
                 vec
             });
@@ -108,15 +113,14 @@ impl Cache {
     {
         self.map.get::<Q>()
     }
-    pub fn update<Q>(&mut self, new_value: Q)
+    pub fn update<Q>(&mut self, new_value: &Q)
     where
         Q: Query + 'static + Clone,
     {
         // todo: look for parent/child query types
         // probably needs some unsafe type dynamic type manipulation
-        let mut item = self.map.get_mut::<Q>().unwrap();
-        let mut new_value = new_value.clone();
-        item = &mut new_value;
+        let item = self.map.get_mut::<Q>().unwrap();
+        *item = new_value.clone();
         for callback_list in self.callbacks.get(&TypeId::of::<Q>()) {
             for callback in callback_list {
                 callback.callback.emit(Box::new(item.clone()));
@@ -125,7 +129,19 @@ impl Cache {
     }
 }
 
-pub trait Query {}
+/// This trait marks a trait as a GraphQL query. There are a couple of parts to this.
+///
+/// The first thing of note is that this trait requires that `Deserialize` is implemented on this
+/// trait. This implementation is required so that any item implementing `Query` can be decoded from
+/// a server. If your query returns a list of items, you should wrap `Vec` in the item on which
+/// `Query` is implemented (e.g. `struct List(Vec<Inner>)`)
+pub trait Query: for<'de> serde::Deserialize<'de> {
+    fn raw_query() -> String;
+    /// If this query returns only a subset of available fields on an item, Myoxine needs a way to
+    /// retrieve the type of the parent. This allows the cache to quickly upgrade and downgrade
+    /// items as necessary.
+    fn parent() -> Option<TypeId>;
+}
 
 #[derive(Properties, Clone)]
 pub struct QueryProviderProps<Q>
