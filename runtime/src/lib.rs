@@ -36,7 +36,7 @@ pub struct CacheCallback {
     callback: Callback<Box<dyn Any>>,
     /// The unique ID for this callback. This is used to remove the callback when a component
     /// unmounts.
-    callback_id: i32
+    callback_id: i32,
 }
 
 pub struct Cache {
@@ -73,10 +73,11 @@ impl Cache {
             .for_each(drop);
     }
     /// Register a new callback.
-    pub fn register_callback<Q>(&mut self, callback: Callback<Q>, event: Event)
+    pub fn register_callback<Q>(&mut self, callback: Callback<Q>, event: Event) -> i32
     where
         Q: Query + 'static,
     {
+        let id;
         if let Some(item) = self
             .callbacks
             .iter_mut()
@@ -85,18 +86,40 @@ impl Cache {
             item.1.push(CacheCallback {
                 fires_on: event,
                 callback: callback.reform(|item: Box<dyn Any>| *item.downcast::<Q>().unwrap()),
-                callback_id: item.1.len() as i32
-            })
+                callback_id: item.1.len() as i32,
+            });
+            id = item.1.len() as i32;
         } else {
             self.callbacks.insert(TypeId::of::<Q>(), {
                 let mut vec = Vec::new();
                 vec.push(CacheCallback {
                     fires_on: event,
                     callback: callback.reform(|any: Box<dyn Any>| *any.downcast::<Q>().unwrap()),
-                    callback_id: 0
+                    callback_id: 0,
                 });
                 vec
             });
+            id = 0;
+        }
+        id
+    }
+    /// Removes any callbacks subscribing to the results of a query of type `Q`.
+    pub fn deregister_callback<Q>(&mut self, callback_id: i32)
+    where
+        Q: Query + 'static,
+    {
+        for item in &mut self.callbacks {
+            if *item.0 == TypeId::of::<Q>() {
+                let mut to_remove = vec![];
+                for (i, callback) in item.1.iter().enumerate() {
+                    if callback.callback_id == callback_id {
+                        to_remove.push(i)
+                    }
+                }
+                for idx in to_remove {
+                    item.1.remove(idx);
+                }
+            }
         }
     }
     /// Removes an item from the cache.
@@ -157,6 +180,7 @@ where
     Q: Query + Clone + 'static,
 {
     render: std::rc::Rc<dyn Fn(Option<Q>) -> Html>,
+    callback_ids: Vec<i32>,
     _link: ComponentLink<Self>,
     _query: PhantomData<Q>,
 }
@@ -177,12 +201,13 @@ where
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         // attach a callback
-        CACHE.with(|cache| {
+        let callback = CACHE.with(|cache| {
             cache
                 .borrow_mut()
                 .register_callback(link.callback(|q| Self::Message::Update(q)), Event::Updated)
         });
         Self {
+            callback_ids: vec![callback],
             render: props.render,
             _link: link,
             _query: PhantomData,
@@ -213,7 +238,14 @@ where
         }))
     }
 
-    fn destroy(&mut self) {}
+    fn destroy(&mut self) {
+        CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            for id in &self.callback_ids {
+                cache.deregister_callback::<Q>(*id);
+            }
+        })
+    }
 }
 
 pub trait Mutation {}
