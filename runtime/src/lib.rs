@@ -11,14 +11,15 @@ A copy of the license can be found at the root of this Git repository.
 //! Apollo GraphQL.
 
 use std::any::{Any, TypeId};
-use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::rc::Rc;
-use unsafe_any::UnsafeAny;
 use yew::prelude::*;
+
+pub mod objects;
+pub mod query;
 
 thread_local! {
     pub(crate) static CACHE: RefCell<Cache> = RefCell::new(Cache::default());
@@ -130,6 +131,7 @@ impl Cache {
         self.callbacks.remove(&TypeId::of::<Q>());
         self.map.remove::<Q>();
     }
+    /// Retrieve an item from the cache.
     pub fn get<Q>(&self) -> Option<&Q>
     where
         Q: Query + 'static,

@@ -8,14 +8,21 @@ A copy of the license can be found at the root of this Git repository.
 
 mod check;
 mod mutation;
+mod object;
 mod query;
+mod search;
 
 extern crate proc_macro;
 
 use crate::query::query_inner;
 use proc_macro::TokenStream;
 
-#[proc_macro_derive(Query)]
+#[proc_macro_derive(Object)]
+pub fn derive_object_on_struct(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    todo!()
+}
+
+#[proc_macro]
 /// A derive macro which implements the `Query` trait on structs.
 pub fn query(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     TokenStream::from(query_inner(input.into()))

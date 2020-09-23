@@ -76,11 +76,12 @@ impl QueryCodegen for Document {
         let literal = meta.get_query()?;
         Ok(quote::quote! {
             impl Query for #struct_identifier {
-                fn query() -> String {
-                    #literal
+                fn execute(&self, nl: NetworkLayer) -> Result<Box<dyn Object>, QueryExecutionError> {
+                    Box::new(NetworkLayer::execute(#literal)?.deserialize())
                 }
             }
         })
+        // ^^ COMBAK: fix this output
     }
 }
 
