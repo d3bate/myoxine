@@ -16,6 +16,14 @@ fn assert_parses(input: &str) {
 }
 
 #[test]
+fn test_example_34_directives() {
+    let schema = r#"type Person @addExternalFields(source: "profiles") @excludeField(name: "photo") {
+    name: String
+  }"#;
+    assert_parses(schema);
+}
+
+#[test]
 fn test_example_38_type_definition() {
     let schema = r#"type Query {
       myName: String

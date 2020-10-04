@@ -693,19 +693,34 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ObjectTypeDefinition {
             name: Name::try_from(iterator.next().unwrap())?,
             implements_interfaces: {
                 match iterator.peek() {
-                    Some(_) => Some(ImplementsInterfaces::try_from(iterator.next().unwrap())?),
+                    Some(item) => match item.as_rule() {
+                        Rule::implements_interfaces => {
+                            Some(ImplementsInterfaces::try_from(iterator.next().unwrap())?)
+                        }
+                        _ => None,
+                    },
                     None => None,
                 }
             },
             directives: {
                 match iterator.peek() {
-                    Some(_) => Some(Directives::try_from(iterator.next().unwrap())?),
+                    Some(item) => match item.as_rule() {
+                        Rule::implements_interfaces => {
+                            Some(Directives::try_from(iterator.next().unwrap())?)
+                        }
+                        _ => None,
+                    },
                     None => None,
                 }
             },
             fields_definition: {
                 match iterator.peek() {
-                    Some(_) => Some(FieldsDefinition::try_from(iterator.next().unwrap())?),
+                    Some(item) => match item.as_rule() {
+                        Rule::implements_interfaces => {
+                            Some(FieldsDefinition::try_from(iterator.next().unwrap())?)
+                        }
+                        _ => None,
+                    },
                     None => None,
                 }
             },
