@@ -1,7 +1,7 @@
 /*
 Built with love and the hope that you'll use this software for good by d3bate.
 
-This file is distributed subject to the terms of the Mozilla Public License (2.0).
+This file is distributed subject to the terms of the Affero General Public License.
 A copy of the license can be found at the root of this Git repository.
 */
 //! Myoxine is a GraphQL runtime for Rust. It's designed with Yew and WebAssembly in mind and is
@@ -18,8 +18,11 @@ use std::ops::Deref;
 use std::rc::Rc;
 use yew::prelude::*;
 
+pub mod cache;
+pub mod network;
 pub mod objects;
 pub mod query;
+pub mod stack;
 
 thread_local! {
     pub(crate) static CACHE: RefCell<Cache> = RefCell::new(Cache::default());
