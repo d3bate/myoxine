@@ -105,7 +105,8 @@ where
             .enumerate()
             .filter(|item| (item.1).0 == id)
             .next()
-            .unwrap().0;
+            .unwrap()
+            .0;
         self.subscriptions.remove(location);
     }
     fn remove(&mut self, item: &O::Id) {

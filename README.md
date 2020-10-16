@@ -33,6 +33,12 @@ issues, please raise an issue with the relevant browser vendor.
 We suggest that you encourage the people who use your software to use Firefox because (a) it is a 
 better browser and (b) it offers better WebAssembly support with things like `wasmtime`.
 
+## API stability
+
+This is pretty much a small piece of a larger application, which means that the API is going to
+evolve as the project it's involved in does as well. At some point, the larger project will be
+released under an open source license and this project will be moved into a monorepo.
+
 ## Chat
 
 We intend to set up a Zulip server down the line. We might also ask the Yew folks if they might give
