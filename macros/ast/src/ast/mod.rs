@@ -19,6 +19,8 @@ use std::convert::TryFrom;
 use std::path::Path;
 use thiserror::Error as ThisError;
 
+mod extract;
+
 /// Used internally to store the `Span` of an AST node.
 ///
 /// This needs to be resolved with a copy of the input string to do anything meaningful.
@@ -77,11 +79,11 @@ where
 /// ```
 pub struct GraphQLParser;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 /// A GraphQL name. This just wraps a string to make it possible to implement `TryFrom<Pair>` on it.
 ///
 /// http://spec.graphql.org/draft/#sec-Names
-pub struct Name(String);
+pub struct Name(pub String);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Name {
     type Error = Error<Rule>;
@@ -337,7 +339,6 @@ impl Default for SchemaDefinition {
         }
     }
 }
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 /// A GraphQL type definition.
 ///
@@ -349,6 +350,19 @@ pub enum TypeDefinition {
     UnionTypeDefinition(UnionTypeDefinition),
     EnumTypeDefinition(EnumTypeDefinition),
     InputObjectTypeDefinition(InputObjectTypeDefinition),
+}
+
+impl From<TypeDefinition> for Name {
+    fn from(def: TypeDefinition) -> Self {
+        match def {
+            TypeDefinition::ScalarTypeDefinition(def) => From::from(def),
+            TypeDefinition::ObjectTypeDefinition(def) => From::from(def),
+            TypeDefinition::InterfaceTypeDefinition(def) => From::from(def),
+            TypeDefinition::UnionTypeDefinition(def) => From::from(def),
+            TypeDefinition::EnumTypeDefinition(def) => From::from(def),
+            TypeDefinition::InputObjectTypeDefinition(def) => From::from(def),
+        }
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for TypeDefinition {
@@ -392,6 +406,12 @@ pub struct ScalarTypeDefinition {
     name: Name,
     /// The directives belonging to the type.
     directives: Option<Directives>,
+}
+
+impl From<ScalarTypeDefinition> for Name {
+    fn from(def: ScalarTypeDefinition) -> Self {
+        def.name
+    }
 }
 
 impl Default for ScalarTypeDefinition {
@@ -614,11 +634,11 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Field {
 ///
 /// http://spec.graphql.org/draft/#FieldDefinition
 pub struct FieldDefinition {
-    description: Option<Description>,
-    name: Name,
-    arguments_definition: Option<ArgumentsDefinition>,
-    graphql_type: GraphQLType,
-    directives: Option<Directives>,
+    pub description: Option<Description>,
+    pub name: Name,
+    pub arguments_definition: Option<ArgumentsDefinition>,
+    pub graphql_type: GraphQLType,
+    pub directives: Option<Directives>,
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for FieldDefinition {
@@ -670,11 +690,17 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FieldsDefinition {
 ///
 /// http://spec.graphql.org/draft/#ObjectTypeDefinition
 pub struct ObjectTypeDefinition {
-    description: Option<Description>,
-    name: Name,
-    implements_interfaces: Option<ImplementsInterfaces>,
-    directives: Option<Directives>,
-    fields_definition: Option<FieldsDefinition>,
+    pub description: Option<Description>,
+    pub name: Name,
+    pub implements_interfaces: Option<ImplementsInterfaces>,
+    pub directives: Option<Directives>,
+    pub fields_definition: Option<FieldsDefinition>,
+}
+
+impl From<ObjectTypeDefinition> for Name {
+    fn from(def: ObjectTypeDefinition) -> Self {
+        def.name
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for ObjectTypeDefinition {
@@ -740,6 +766,12 @@ pub struct InterfaceTypeDefinition {
     fields_definition: Option<FieldsDefinition>,
 }
 
+impl From<InterfaceTypeDefinition> for Name {
+    fn from(def: InterfaceTypeDefinition) -> Self {
+        def.name
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for InterfaceTypeDefinition {
     type Error = Error<Rule>;
 
@@ -785,6 +817,12 @@ pub struct UnionTypeDefinition {
     name: Name,
     directives: Option<Directives>,
     union_member_types: Option<UnionMemberTypes>,
+}
+
+impl From<UnionTypeDefinition> for Name {
+    fn from(def: UnionTypeDefinition) -> Self {
+        def.name
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for UnionTypeDefinition {
@@ -840,6 +878,12 @@ pub struct EnumTypeDefinition {
     name: Name,
     directives: Option<Directives>,
     enum_values_definition: Option<EnumValuesDefinition>,
+}
+
+impl From<EnumTypeDefinition> for Name {
+    fn from(def: EnumTypeDefinition) -> Self {
+        def.name
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for EnumTypeDefinition {
@@ -940,6 +984,12 @@ pub struct InputObjectTypeDefinition {
     name: Name,
     directives: Option<Directives>,
     input_fields_definition: Option<InputFieldsDefinition>,
+}
+
+impl From<InputObjectTypeDefinition> for Name {
+    fn from(def: InputObjectTypeDefinition) -> Self {
+        def.name
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for InputObjectTypeDefinition {
@@ -1979,7 +2029,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Definition {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub struct Document(pub Vec<Definition>);
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Document {

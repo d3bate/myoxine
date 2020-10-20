@@ -69,7 +69,7 @@ where
 impl<O> Cache<O> for VanillaCache<O>
 where
     O: Object,
-    O::Id: PartialEq + Eq + Hash,
+    O::Id: PartialEq + Eq + Hash + Clone,
 {
     fn cache(&mut self, item: O) -> Result<(), CacheError> {
         // I was amazed that this operation could not fail (maybe I've done something wrong)
@@ -79,7 +79,7 @@ where
                 *some_item = item;
             }
             None => {
-                self.items.insert(item.id(), item);
+                self.items.insert(item.id().clone(), item);
             }
         }
         Ok(())

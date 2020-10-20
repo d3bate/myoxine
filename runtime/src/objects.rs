@@ -16,7 +16,9 @@ impl Write for Unit {
 /// intended for manual implementation; you should instead use our derive macro.
 pub trait Object: for<'de> Deserialize<'de> + Serialize + 'static {
     type Id;
-    fn id(&self) -> Self::Id;
+    /// This function returns the id of an object. In most cases this will just return the field on
+    /// the object used to represent your GraphQL type as a Rust object.
+    fn id(&self) -> &Self::Id;
     /// This function refetches an object from the GraphQL server.
     ///
     /// Note that Myoxine makes some assumptions about what you have named the refetch query. If you

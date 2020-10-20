@@ -17,9 +17,13 @@ extern crate proc_macro;
 use crate::query::query_inner;
 use proc_macro::TokenStream;
 
-#[proc_macro_derive(Object)]
-pub fn derive_object_on_struct(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    todo!()
+#[proc_macro_derive(Object, attributes(schema, id))]
+pub fn derive_object_on_struct(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    match object::derive_object(input) {
+        Ok(t) => t.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
 }
 
 #[proc_macro]

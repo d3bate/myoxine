@@ -82,7 +82,6 @@ impl CheckQuery for OperationDefinition {
                            Subscriptions are also not currently supported, though support is on the long-term roadmap."))
             }
         };
-        // should also check against the schema
         todo!()
     }
 }
