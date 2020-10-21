@@ -742,7 +742,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ObjectTypeDefinition {
             fields_definition: {
                 match iterator.peek() {
                     Some(item) => match item.as_rule() {
-                        Rule::implements_interfaces => {
+                        Rule::fields_definition => {
                             Some(FieldsDefinition::try_from(iterator.next().unwrap())?)
                         }
                         _ => None,

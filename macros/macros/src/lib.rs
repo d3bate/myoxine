@@ -12,6 +12,8 @@ mod object;
 mod query;
 mod search;
 
+mod tests;
+
 extern crate proc_macro;
 
 use crate::query::query_inner;
@@ -50,12 +52,4 @@ pub fn query(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// ```
 pub fn mutation(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     todo!()
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
 }

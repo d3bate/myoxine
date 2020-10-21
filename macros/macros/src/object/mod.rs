@@ -7,7 +7,7 @@ A copy of the license can be found at the root of this Git repository.
 
 //! Contains code with which one can derive the `Object` trait on an item.
 
-use ast::ast::{Definition, Name, ObjectTypeDefinition, TypeDefinition, TypeSystemDefinition};
+use ast::ast::{Definition, Name, ObjectTypeDefinition, TypeSystemDefinition};
 
 use syn::DeriveInput;
 
@@ -92,16 +92,8 @@ fn output_struct(
                             Ok(m) => m,
                             Err(_) => return false,
                         };
-                        if let syn::Meta::NameValue(name_value) = x {
-                            if name_value.path.is_ident("id") {
-                                if let syn::Lit::Str(string) = name_value.lit {
-                                    true
-                                } else {
-                                    false
-                                }
-                            } else {
-                                false
-                            }
+                        if let syn::Meta::Path(p) = x {
+                            p.is_ident("id")
                         } else {
                             return true;
                         }
@@ -116,18 +108,29 @@ fn output_struct(
     };
     let id_type = id_field.ty;
     let id_path = id_field.ident;
-    quote::quote! {
+    Ok(quote::quote! {
         impl ::myoxine::Object for #ident {
             type Id = #id_type;
             fn id(&self) -> &Self::Id {
-                self.#id_path
+                &self.#id_path
             }
             fn refetch_query(&self) -> ::myoxine::Query {
                 todo!()
             }
         }
-    };
-    todo!()
+    })
+}
+
+/// Maps built-in GraphQL types into the corresponding Rust ones. Note that Myoxine is picky about
+/// which Rust types are valid for certain GraphQL types. These values have been chosen to match the
+/// specification and reduce the possibility of errors arising.
+///
+/// This is an extremely rudimentary function and will need to be fleshed out in the future.
+fn graphql2rust(input: &str) -> &str {
+    match input {
+        "Int" => "i32",
+        _ => input,
+    }
 }
 
 fn check_type_def(type_def: &ObjectTypeDefinition, input: &DeriveInput) -> Result<(), syn::Error> {
@@ -137,7 +140,7 @@ fn check_type_def(type_def: &ObjectTypeDefinition, input: &DeriveInput) -> Resul
             for error in data_struct.fields.iter().map(|field| {
                 let identifier = field.ident.clone().unwrap().to_string();
                 if !match field.ty.clone() {
-                    syn::Type::Path(path) => path.path.is_ident(
+                    syn::Type::Path(path) => path.path.is_ident(graphql2rust(
                         &(graphql_type_fields
                             .iter()
                             .find(|field_definition| field_definition.name.0 == identifier)
@@ -147,7 +150,7 @@ fn check_type_def(type_def: &ObjectTypeDefinition, input: &DeriveInput) -> Resul
                             .0)
                             .0
                             .clone(),
-                    ),
+                    )),
                     _ => panic!(),
                 } {
                     Err(syn::Error::new_spanned(field.ty.clone(), "The type of this field does not match that of the GraphQL schema you have provided."))
@@ -162,5 +165,43 @@ fn check_type_def(type_def: &ObjectTypeDefinition, input: &DeriveInput) -> Resul
             Ok(())
         }
         _ => panic!("invalid type"),
+    }
+}
+
+#[cfg(test)]
+mod test_object_derive_macro {
+    use super::*;
+    #[test]
+    fn test_simple_object_derivation() {
+        let input: syn::DeriveInput = syn::parse_str(
+            r#"
+        #[derive(Query)]
+        #[schema="schema.graphql"]
+        struct User {
+            #[id]
+            id: i32,
+            username: String
+        }
+        "#,
+        )
+        .expect("failed to parse");
+        let output = derive_object(input).expect("failed to derive");
+        assert!(
+            crate::tests::token_streams_are_equal
+            (output,
+             "impl :: myoxine :: Object for User { type Id = i32 ; fn id ( & self ) -> & Self :: Id 
+                { & self . id } fn refetch_query ( & self ) -> :: myoxine :: Query { todo ! ( ) } }"
+                .parse::<proc_macro2::TokenStream>()
+                .unwrap()
+            )
+        );
+    }
+    #[test]
+    fn test_more_complex_object_derivation() {
+        todo!()
+    }
+    #[test]
+    fn test_derivation_with_other_objects() {
+        todo!()
     }
 }

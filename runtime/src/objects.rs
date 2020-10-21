@@ -21,8 +21,8 @@ pub trait Object: for<'de> Deserialize<'de> + Serialize + 'static {
     fn id(&self) -> &Self::Id;
     /// This function refetches an object from the GraphQL server.
     ///
-    /// Note that Myoxine makes some assumptions about what you have named the refetch query. If you
-    /// have named your query to something other than the name the derive macro automatically
-    /// infers you will need to specify the `#[refetch_query = "query"]` attribute.
-    fn refetch_object(&self) -> Query;
+    /// Note that Myoxine makes some assumptions about what you have named the refetch query. This
+    /// is in line with the Relay GraphQL schema definition. You may need to rewrite your schema if
+    /// it does not fulfil the necessary criteria.
+    fn refetch_object(&self) -> Query<Self>;
 }
