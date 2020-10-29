@@ -1,11 +1,9 @@
 [workspace]
-members=[
+members = [
     # macros (pre-processing)
     "macros/ast",
     "macros/macros",
     "macros/optimiser",
     # runtime crates
     "runtime",
-    # command line interface
-    "cli"
 ]

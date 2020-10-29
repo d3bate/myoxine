@@ -6,8 +6,10 @@ A copy of the license can be found at the root of this Git repository.
 */
 
 use crate::objects::Object;
-use std::{collections::HashMap, hash::Hash};
+use std::cell::RefCell;
+use std::{any::Any, any::TypeId, collections::HashMap, hash::Hash, rc::Rc};
 use thiserror::Error as ThisError;
+use wasm_bindgen::__rt::std::thread::LocalKey;
 use yew::Callback;
 
 #[derive(ThisError, Debug)]
@@ -22,115 +24,154 @@ pub enum Event {
     Delete,
 }
 
-pub struct Subscription<O: 'static> {
-    callback: Callback<O>,
-    event: Event,
-    selector: &'static dyn Fn(O) -> bool,
-}
-
-impl<O> Subscription<O> {
-    fn new(callback: Callback<O>, event: Event, selector: &'static dyn Fn(O) -> bool) -> Self {
-        Self {
-            callback,
-            event,
-            selector,
-        }
-    }
-}
-
-pub trait Cache<O: Object>: 'static {
+pub trait Cache: 'static + Sized {
     /// Caches an item.
-    fn cache(&mut self, item: O) -> Result<(), CacheError>;
-    fn subscribe(
+    fn cache<O>(&mut self, item: O)
+    where
+        O: Object + 'static,
+        O::Id: Eq + PartialEq;
+    fn retrieve<O>(&self, id: &O::Id) -> Option<Rc<O>>
+    where
+        O: Object + 'static,
+        O::Id: Eq + PartialEq;
+    fn subscribe<O>(
         &mut self,
-        selector: &'static dyn Fn(O) -> bool,
+        selector: &'static dyn Fn(&O) -> bool,
         callback: Callback<O>,
         event: Event,
-    ) -> u64;
+    ) -> u64
+    where
+        O: Object + Clone + 'static;
     fn unsubscribe(&mut self, id: u64);
     /// Evicts an item from the cache.
-    fn remove(&mut self, object: &O::Id);
+    fn remove<O>(&mut self, object: &O::Id)
+    where
+        O: Object,
+        O::Id: Eq + PartialEq;
+    fn local_key() -> &'static LocalKey<RefCell<Self>>;
 }
 
-/// The standard cache, provided by default.
-///
-/// This is just a thin wrapper around a `HashMap`; more elaborate caches are planned for
-/// including time-based caches and the like).
-pub struct VanillaCache<O>
-where
-    O: Object,
-    O::Id: PartialEq,
-{
-    items: HashMap<O::Id, O>,
-    subscriptions: Vec<(u64, Subscription<O>)>,
+thread_local! {
+    pub static VANILLA_CACHE: RefCell<VanillaCache> = RefCell::new(VanillaCache::new())
+}
+
+pub struct VanillaCache {
+    items: Vec<(TypeId, Rc<dyn Any>)>,
+    subscriptions: Vec<(
+        u64,
+        Event,
+        TypeId,
+        Box<dyn Fn(Rc<dyn Any>) -> bool>,
+        Callback<Rc<dyn Any>>,
+    )>,
     subscription_counter: u64,
 }
 
-impl<O> Cache<O> for VanillaCache<O>
-where
-    O: Object,
-    O::Id: PartialEq + Eq + Hash + Clone,
-{
-    fn cache(&mut self, item: O) -> Result<(), CacheError> {
-        // I was amazed that this operation could not fail (maybe I've done something wrong)
-        let cache_item = self.items.get_mut(&item.id());
-        match cache_item {
-            Some(some_item) => {
-                *some_item = item;
-            }
-            None => {
-                self.items.insert(item.id().clone(), item);
-            }
+impl VanillaCache {
+    fn new() -> Self {
+        Self {
+            items: vec![],
+            subscriptions: vec![],
+            subscription_counter: 0,
         }
-        Ok(())
-    }
-    fn subscribe(
-        &mut self,
-        selector: &'static dyn Fn(O) -> bool,
-        callback: Callback<O>,
-        event: Event,
-    ) -> u64 {
-        self.subscriptions.push((
-            self.subscription_counter,
-            Subscription::new(callback, event, selector),
-        ));
-        let subscription_counter = self.subscription_counter;
-        self.subscription_counter += 1;
-        subscription_counter
-    }
-    fn unsubscribe(&mut self, id: u64) {
-        let location = self
-            .subscriptions
-            .iter()
-            .enumerate()
-            .filter(|item| (item.1).0 == id)
-            .next()
-            .unwrap()
-            .0;
-        self.subscriptions.remove(location);
-    }
-    fn remove(&mut self, item: &O::Id) {
-        self.items.remove(item);
     }
 }
 
-#[cfg(test)]
-/// These tests cannot be written yet before the `Object` derive macro has been completed.
-mod vanilla_cache_test {
-    #[test]
-    fn test_cache() {
-        todo!()
+impl Cache for VanillaCache {
+    fn cache<O>(&mut self, item: O)
+    where
+        O: Object + 'static,
+        O::Id: Eq + PartialEq,
+    {
+        let position = self
+            .items
+            .iter()
+            .filter(|(type_id, _)| type_id == &TypeId::of::<O>())
+            .position(|(_, cmp_item)| cmp_item.downcast_ref::<O>().unwrap().id() == item.id());
+        if let Some(position) = position {
+            *self.items.get_mut(position).unwrap() = (TypeId::of::<O>(), Rc::new(item));
+        } else {
+            self.items.push((TypeId::of::<O>(), Rc::new(item)));
+        }
+        let item = self.items.get(self.items.len() - 1).unwrap();
+        for _ in self
+            .subscriptions
+            .iter()
+            .filter(|subscription| subscription.2 == TypeId::of::<O>())
+            .map(|subscription| {
+                subscription.4.emit(item.1.clone());
+            })
+        {}
     }
-    #[test]
-    fn test_retrieve() {
-        todo!()
+
+    fn retrieve<O>(&self, id: &O::Id) -> Option<Rc<O>>
+    where
+        O: Object + 'static,
+        O::Id: Eq + PartialEq,
+    {
+        self.items
+            .iter()
+            .filter(|item| item.0 == TypeId::of::<O>())
+            .find(|item| item.1.clone().downcast::<O>().unwrap().id() == id)
+            .map(|item| item.1.clone().downcast::<O>().unwrap())
     }
-    #[test]
-    fn test_subscribe() {
-        todo!()
+
+    fn subscribe<O>(
+        &mut self,
+        selector: &'static dyn Fn(&O) -> bool,
+        callback: Callback<O>,
+        event: Event,
+    ) -> u64
+    where
+        O: Object + Clone + 'static,
+    {
+        let x = self.subscription_counter.clone();
+        self.subscriptions.push((
+            x,
+            event,
+            TypeId::of::<O>(),
+            Box::new(move |input: Rc<dyn Any>| selector(input.downcast_ref::<O>().unwrap())),
+            callback.reform(|any: Rc<dyn Any>| any.downcast_ref::<O>().map(Clone::clone).unwrap()),
+        ));
+        self.subscription_counter += 1;
+        x
     }
-    #[test]
-    fn test_unsubscribe() {
-        todo!()
+
+    fn unsubscribe(&mut self, id: u64) {
+        self.subscriptions
+            .iter()
+            .position(|item| item.0 == id)
+            .expect(
+                "attempted to unsubscribe a subscription which either has already been \
+        unsubscribed or did not exist in the first place",
+            );
+    }
+
+    fn remove<O>(&mut self, object: &O::Id)
+    where
+        O: Object,
+        O::Id: Eq + PartialEq,
+    {
+        let position = self
+            .items
+            .iter()
+            .filter(|(type_id, _)| type_id == &TypeId::of::<O>())
+            .position(|(_, item)| item.downcast_ref::<O>().unwrap().id() == object);
+        if let Some(position) = position {
+            let item = self.items.remove(position);
+            for relevant_subscription in
+                self.subscriptions
+                    .iter()
+                    .filter(|(_, event, _, _, _)| match event {
+                        Event::Delete => true,
+                        _ => false,
+                    })
+            {
+                relevant_subscription.4.emit(item.1.clone());
+            }
+        }
+    }
+    fn local_key() -> &'static LocalKey<RefCell<Self>> {
+        &VANILLA_CACHE
     }
 }

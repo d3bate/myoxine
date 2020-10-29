@@ -26,3 +26,22 @@ pub trait Object: for<'de> Deserialize<'de> + Serialize + 'static {
     /// it does not fulfil the necessary criteria.
     fn refetch_object(&self) -> Query<Self>;
 }
+
+/// This trait is designed to handle collections of objects.
+pub trait ObjectCollection<O>
+where
+    O: Object,
+{
+    fn ids(&self) -> Vec<&O::Id>;
+}
+
+impl<O> ObjectCollection<O> for Vec<O>
+where
+    O: Object,
+{
+    fn ids(&self) -> Vec<&O::Id> {
+        self.iter()
+            .map(|object| object.id())
+            .collect::<Vec<&O::Id>>()
+    }
+}

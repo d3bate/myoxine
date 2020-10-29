@@ -5,10 +5,10 @@ This file is distributed subject to the terms of the Affero General Public Licen
 A copy of the license can be found at the root of this Git repository.
 */
 //! Myoxine is a GraphQL runtime for Rust. It's designed with Yew and WebAssembly in mind and is
-//! intended to make complex applications easy to build and scale. It's currently pretty
-//! experimental stuff, but if you like living at the blazing edge of exciting web design software
-//! is definitely worth a try. Myoxine is inspired by Javascript GraphQL runtimes such as Relay and
-//! Apollo GraphQL.
+//! intended to make complex applications easy to build and scale. It's currently experimental and
+//! hasn't been used in the context of a serious application, but hopefully that will change soon.
+
+pub use yew;
 
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
@@ -22,7 +22,7 @@ pub mod cache;
 pub mod network;
 pub mod objects;
 pub mod query;
-pub mod stack;
+pub mod query_provider;
 
 thread_local! {
     pub(crate) static CACHE: RefCell<Cache> = RefCell::new(Cache::default());

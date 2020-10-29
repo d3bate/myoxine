@@ -18,3 +18,4 @@ wasm-bindgen-futures="0.4"
 anyhow="1"
 wasm-bindgen={version="0.2.68", features=["serde-serialize"]}
 js-sys="0.3"
+impl-trait-for-tuples = "0.2.0"
