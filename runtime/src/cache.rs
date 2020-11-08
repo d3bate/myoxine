@@ -7,9 +7,9 @@ A copy of the license can be found at the root of this Git repository.
 
 use crate::objects::Object;
 use std::cell::RefCell;
-use std::{any::Any, any::TypeId, collections::HashMap, hash::Hash, rc::Rc};
+use std::thread::LocalKey;
+use std::{any::Any, any::TypeId, rc::Rc};
 use thiserror::Error as ThisError;
-use wasm_bindgen::__rt::std::thread::LocalKey;
 use yew::Callback;
 
 #[derive(ThisError, Debug)]
@@ -28,12 +28,10 @@ pub trait Cache: 'static + Sized {
     /// Caches an item.
     fn cache<O>(&mut self, item: O)
     where
-        O: Object + 'static,
-        O::Id: Eq + PartialEq;
-    fn retrieve<O>(&self, id: &O::Id) -> Option<Rc<O>>
+        O: Object + 'static;
+    fn retrieve<O>(&self, id: &crate::Id) -> Option<Rc<O>>
     where
-        O: Object + 'static,
-        O::Id: Eq + PartialEq;
+        O: Object + 'static;
     fn subscribe<O>(
         &mut self,
         selector: &'static dyn Fn(&O) -> bool,
@@ -44,10 +42,9 @@ pub trait Cache: 'static + Sized {
         O: Object + Clone + 'static;
     fn unsubscribe(&mut self, id: u64);
     /// Evicts an item from the cache.
-    fn remove<O>(&mut self, object: &O::Id)
+    fn remove<O>(&mut self, object: &crate::Id)
     where
-        O: Object,
-        O::Id: Eq + PartialEq;
+        O: Object;
     fn local_key() -> &'static LocalKey<RefCell<Self>>;
 }
 
@@ -81,7 +78,6 @@ impl Cache for VanillaCache {
     fn cache<O>(&mut self, item: O)
     where
         O: Object + 'static,
-        O::Id: Eq + PartialEq,
     {
         let position = self
             .items
@@ -104,10 +100,9 @@ impl Cache for VanillaCache {
         {}
     }
 
-    fn retrieve<O>(&self, id: &O::Id) -> Option<Rc<O>>
+    fn retrieve<O>(&self, id: &crate::Id) -> Option<Rc<O>>
     where
         O: Object + 'static,
-        O::Id: Eq + PartialEq,
     {
         self.items
             .iter()
@@ -147,10 +142,9 @@ impl Cache for VanillaCache {
             );
     }
 
-    fn remove<O>(&mut self, object: &O::Id)
+    fn remove<O>(&mut self, object: &crate::Id)
     where
         O: Object,
-        O::Id: Eq + PartialEq,
     {
         let position = self
             .items

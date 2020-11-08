@@ -1,3 +1,5 @@
+//! Used to extract useful data from the AST, for example to work out what types are in a document.
+
 use super::{
     Definition, Document, GraphQLType, Name, NamedType, SchemaDefinition, TypeSystemDefinition,
 };

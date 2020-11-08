@@ -86,23 +86,24 @@ impl QueryCodegen for Document {
 }
 
 impl QueryCodegen for Definition {
-    fn output(&self, meta: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
+    fn output(&self, _: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
         todo!()
     }
 }
 
 impl QueryCodegen for ExecutableDefinition {
-    fn output(&self, meta: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
+    fn output(&self, _: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
         todo!()
     }
 }
 
 impl QueryCodegen for OperationDefinition {
-    fn output(&self, meta: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
+    fn output(&self, _: &QueryCodegenMeta) -> Result<TokenStream, syn::Error> {
         todo!()
     }
 }
 
-pub fn query_inner(input: DeriveInput) -> TokenStream {
+#[allow(dead_code)]
+pub fn query_inner(_: DeriveInput) -> TokenStream {
     todo!()
 }

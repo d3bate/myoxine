@@ -22,6 +22,10 @@ use std::path::Path;
 
 pub mod ast;
 
+pub mod prelude {
+    pub use crate::ast::*;
+}
+
 use thiserror::Error as ThisError;
 
 #[derive(ThisError, Debug)]

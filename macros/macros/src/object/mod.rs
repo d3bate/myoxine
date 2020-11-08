@@ -7,12 +7,18 @@ A copy of the license can be found at the root of this Git repository.
 
 //! Contains code with which one can derive the `Object` trait on an item.
 
-use ast::ast::{Definition, Name, ObjectTypeDefinition, TypeSystemDefinition};
+use ast::ast::{
+    Definition, Document, GraphQLType, Name, ObjectTypeDefinition,
+    TypeDefinition, TypeSystemDefinition,
+};
 
+use syn::export::Span;
 use syn::DeriveInput;
 
 const SCHEMA: &str = "schema";
 
+/// Derives `Object` on the specified object. This function is probably going to take some
+/// refinement and anyone willing to act as a guinea pig for it would be appreciated.
 pub fn derive_object(input: syn::DeriveInput) -> Result<proc_macro2::TokenStream, syn::Error> {
     let schema_location = input
         .attrs
@@ -73,6 +79,66 @@ pub fn derive_object(input: syn::DeriveInput) -> Result<proc_macro2::TokenStream
     }
 }
 
+/// Checks that the `Node` interface is defined on a type.
+#[allow(dead_code)]
+fn check_node_interface(document: &Document, _: &syn::Ident) -> Result<(), syn::Error> {
+    document
+        .0
+        .iter()
+        .filter_map(|definition| match definition {
+            Definition::TypeSystemDefinition(def) => Some(def),
+            _ => None,
+        })
+        .filter_map(|type_def| match type_def {
+            TypeSystemDefinition::TypeDefinition(type_def) => Some(type_def),
+            _ => None,
+        })
+        .filter_map(|type_def| match type_def {
+            TypeDefinition::InterfaceTypeDefinition(def) => Some(def),
+            _ => None,
+        })
+        .find(|interface| interface.name.0 == "Node".to_string())
+        .map(|item| {
+            if let Some(fields) = &item.fields_definition {
+                if fields.0.len() > 1 {
+                    Err(syn::Error::new(
+                        Span::call_site(),
+                        "Your `Node` interface has too many fields – it must have only \
+                            one and it must be called `ID`!",
+                    ))
+                } else if let Some(item) = fields.0.get(0) {
+                    if item.name.0 == "id".to_string()
+                        && (item.graphql_type.extract_name().0).0 == "ID".to_string()
+                        && (match item.graphql_type {
+                            GraphQLType::NonNullType(_) => true,
+                            _ => false,
+                        })
+                    {
+                        Ok(item)
+                    } else {
+                        Err(syn::Error::new(
+                            Span::call_site(),
+                            "Your `Node` interface's `id` field is in some way malformed.",
+                        ))
+                    }
+                } else {
+                    Err(syn::Error::new(
+                        Span::call_site(),
+                        "This error shouldn't actually have \
+                            happened; please do report it if it shows up :)",
+                    ))
+                }
+            } else {
+                Err(syn::Error::new(
+                    Span::call_site(),
+                    "Your `Node` interface doesn't have any \
+                        fields. It should have one field `id` of type `ID!`",
+                ))
+            }
+        });
+    todo!()
+}
+
 fn output_struct(
     type_def: &ObjectTypeDefinition,
     input: &DeriveInput,
@@ -106,16 +172,34 @@ fn output_struct(
             .expect("Missing ID field"),
         _ => panic!("Not a struct."),
     };
+    #[allow(unused_variables)]
     let id_type = id_field.ty;
     let id_path = id_field.ident;
+    let fields_type = quote::format_ident!("{}Fields", ident);
+    let input_fields = match &input.data {
+        syn::Data::Struct(data_struct) => match &data_struct.fields {
+            syn::Fields::Named(n) => n,
+            _ => panic!(),
+        },
+        _ => panic!(),
+    }
+    .named
+    .iter()
+    .map(|item| item.ident.as_ref().unwrap())
+    .into_iter();
     Ok(quote::quote! {
+        struct #fields_type {
+            #(#input_fields: bool),*
+        }
         impl ::myoxine::Object for #ident {
-            type Id = #id_type;
-            fn id(&self) -> &Self::Id {
+            type FieldsSelection = #fields_type;
+            fn id(&self) -> ::myoxine ::Id {
                 &self.#id_path
             }
-            fn refetch_query(&self) -> ::myoxine::Query {
-                todo!()
+            fn refetch_query(&self, fields: Self::FieldsSelection) -> ::myoxine::Query {
+                ::myoxine::Query::new(format!("node(id: ) {\
+                \
+                }", self.id()))
             }
         }
     })
@@ -129,6 +213,7 @@ fn output_struct(
 fn graphql2rust(input: &str) -> &str {
     match input {
         "Int" => "i32",
+        "ID" => "String",
         _ => input,
     }
 }
@@ -153,7 +238,11 @@ fn check_type_def(type_def: &ObjectTypeDefinition, input: &DeriveInput) -> Resul
                     )),
                     _ => panic!(),
                 } {
-                    Err(syn::Error::new_spanned(field.ty.clone(), "The type of this field does not match that of the GraphQL schema you have provided."))
+                    Err(syn::Error::new_spanned(
+                        field.ty.clone(),
+                        "The type of this \
+                    field does not match that of the GraphQL schema you have provided.",
+                    ))
                 } else {
                     Ok(())
                 }
@@ -161,7 +250,7 @@ fn check_type_def(type_def: &ObjectTypeDefinition, input: &DeriveInput) -> Resul
                 if let Err(e) = error {
                     return Err(e);
                 }
-            };
+            }
             Ok(())
         }
         _ => panic!("invalid type"),
@@ -171,6 +260,7 @@ fn check_type_def(type_def: &ObjectTypeDefinition, input: &DeriveInput) -> Resul
 #[cfg(test)]
 mod test_object_derive_macro {
     use super::*;
+
     #[test]
     fn test_simple_object_derivation() {
         let input: syn::DeriveInput = syn::parse_str(
@@ -188,18 +278,20 @@ mod test_object_derive_macro {
         let output = derive_object(input).expect("failed to derive");
         assert!(
             crate::tests::token_streams_are_equal
-            (output,
-             "impl :: myoxine :: Object for User { type Id = i32 ; fn id ( & self ) -> & Self :: Id 
+                (output,
+                 "impl :: myoxine :: Object for User { type Id = i32 ; fn id ( & self ) -> & Self :: Id
                 { & self . id } fn refetch_query ( & self ) -> :: myoxine :: Query { todo ! ( ) } }"
-                .parse::<proc_macro2::TokenStream>()
-                .unwrap()
-            )
+                     .parse::<proc_macro2::TokenStream>()
+                     .unwrap(),
+                )
         );
     }
+
     #[test]
     fn test_more_complex_object_derivation() {
         todo!()
     }
+
     #[test]
     fn test_derivation_with_other_objects() {
         todo!()

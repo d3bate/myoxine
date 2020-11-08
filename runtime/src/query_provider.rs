@@ -17,6 +17,7 @@ where
     CHILD: Component + Clone,
     CHILD::Properties: From<Rc<OUT>> + Debug,
 {
+    #[allow(dead_code)]
     link: ComponentLink<Self>,
     subscription_id: u64,
     props: QueryProviderProps<OUT, CHILD>,

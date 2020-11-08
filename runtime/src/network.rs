@@ -27,7 +27,7 @@ A copy of the license can be found at the root of this Git repository.
 ///
 /// The reason I made this was made into a trait was to allow for more complex network setups,
 /// particularly around p2p connections in a web browser. This allows you to construct an interface
-/// where it isn't important how data is fetched, so long as it is fetched.
+/// where it isn't important how data is fetched, so long as the data does eventually get fetched.
 ///
 /// Note that this trait is intended to be used as a singleton).
 pub trait Network: Sized {

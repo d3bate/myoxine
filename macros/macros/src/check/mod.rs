@@ -12,6 +12,7 @@ A copy of the license can be found at the root of this Git repository.
 use ast::ast::*;
 
 /// Useful contextual information for checking that GraphQL asts are well-formed.
+#[allow(dead_code)]
 pub struct QueryCheckingContext {
     /// The parsed schema which queries are validated against.
     schema: Document,
@@ -20,6 +21,7 @@ pub struct QueryCheckingContext {
     attribute: syn::Attribute,
 }
 
+#[allow(unused_variables, dead_code)]
 impl QueryCheckingContext {
     /// Retrieves information about a type.
     fn retrieve_type_information<T>(type_name: T) -> TypeDefinition
@@ -74,7 +76,7 @@ impl CheckQuery for ExecutableDefinition {
 }
 
 impl CheckQuery for OperationDefinition {
-    fn check(&self, context: &QueryCheckingContext) -> Result<(), syn::Error> {
+    fn check(&self, _: &QueryCheckingContext) -> Result<(), syn::Error> {
         match self.operation_type.token {
             OperationType::Query => {}
             OperationType::Subscription | OperationType::Mutation => {

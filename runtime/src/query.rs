@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use ast::prelude::Document;
 use serde::Deserialize;
 
 /*
@@ -10,7 +11,7 @@ A copy of the license can be found at the root of this Git repository.
 */
 
 /// A query containing a string containing the query to be dispatched to the server.
-pub struct Query<OUT>(pub String, PhantomData<OUT>)
+pub struct Query<OUT>(pub Document, PhantomData<OUT>)
 where
     OUT: for<'de> Deserialize<'de>;
 
@@ -19,7 +20,7 @@ where
     OUT: for<'de> Deserialize<'de>,
 {
     /// Constructs a new query.
-    pub fn new(query: String) -> Self {
+    pub fn new(query: Document) -> Self {
         Self(query, PhantomData)
     }
     /// Deserialized a JSON stream from the server into the output type of the query.

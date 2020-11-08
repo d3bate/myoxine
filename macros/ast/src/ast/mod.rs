@@ -11,15 +11,21 @@ A copy of the license can be found at the root of this Git repository.
 //! projects, but if you're interested in speed we'd suggest you use a different ast.
 //!
 //! If you're unsure about any of the code in this file, please do ask about it!
+//!
+//! All the types in this module (should) implement `Display` which means that they can be
+//! manipulated at runtime and formatted before being delivered to a server. The intention with
+//! this library has been to provide as much safety as is possible as well as taking advantage of
+//! Rust's extraordinarily eloquent nature to make it easier to write correct, fast and maintainable
+//! programmes.
 
 use pest::error::{Error, ErrorVariant};
 use pest::iterators::Pair;
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 use std::path::Path;
+use std::{convert::TryFrom, fmt::Display};
 use thiserror::Error as ThisError;
 
-mod extract;
+pub mod extract;
 
 /// Used internally to store the `Span` of an AST node.
 ///
@@ -85,6 +91,12 @@ pub struct GraphQLParser;
 /// http://spec.graphql.org/draft/#sec-Names
 pub struct Name(pub String);
 
+impl Display for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for Name {
     type Error = Error<Rule>;
 
@@ -103,6 +115,16 @@ pub enum OperationType {
     Query,
     Mutation,
     Subscription,
+}
+
+impl Display for OperationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Query => "query",
+            Self::Mutation => "mutation",
+            Self::Subscription => "subscription",
+        })
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for OperationType {
@@ -127,6 +149,12 @@ impl<'a> TryFrom<Pair<'a, Rule>> for OperationType {
 /// http://spec.graphql.org/draft/#NamedType
 pub struct NamedType(pub Name);
 
+impl Display for NamedType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for NamedType {
     type Error = Error<Rule>;
 
@@ -142,6 +170,14 @@ pub struct RootOperationTypeDefinition {
     pub operation_type: OperationType,
     /// The type which this operation refers to.
     pub named_type: NamedType,
+}
+
+impl Display for RootOperationTypeDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.operation_type.to_string())?;
+        f.write_str(": ")?;
+        f.write_str(&self.named_type.to_string())
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for RootOperationTypeDefinition {
@@ -165,6 +201,14 @@ pub struct Argument {
     value: Value,
 }
 
+impl Display for Argument {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.name.to_string())?;
+        f.write_str(": ")?;
+        f.write_str(&self.value.to_string())
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for Argument {
     type Error = Error<Rule>;
 
@@ -182,6 +226,17 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Argument {
 ///
 /// http://spec.graphql.org/draft/#Arguments
 pub struct Arguments(pub Vec<Argument>);
+
+impl Display for Arguments {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("(")?;
+        for argument in &self.0 {
+            argument.fmt(f)?;
+            f.write_str(" ")?;
+        }
+        f.write_str(")")
+    }
+}
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Arguments {
     type Error = Error<Rule>;
@@ -208,6 +263,14 @@ pub struct Directive {
     arguments: Option<Arguments>,
 }
 
+impl Display for Directive {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("@ ")?;
+        self.name.fmt(f)?;
+        write_option(self.arguments.as_ref(), f)
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for Directive {
     type Error = Error<Rule>;
 
@@ -228,6 +291,16 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Directive {
 ///
 /// http://spec.graphql.org/draft/#Directive
 pub struct Directives(Vec<Directive>);
+
+impl Display for Directives {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for directive in &self.0 {
+            directive.fmt(f)?;
+            f.write_str(" ")?;
+        }
+        Ok(())
+    }
+}
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Directives {
     type Error = Error<Rule>;
@@ -257,6 +330,16 @@ pub struct SchemaDefinition {
     mutation: Option<RootOperationTypeDefinition>,
     /// This isn't supported and is ignored.
     subscription: Option<RootOperationTypeDefinition>,
+}
+
+impl Display for SchemaDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        write_option(self.directives.as_ref(), f)?;
+        write_option(self.query.as_ref(), f)?;
+        write_option(self.mutation.as_ref(), f)?;
+        write_option(self.subscription.as_ref(), f)
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for SchemaDefinition {
@@ -352,6 +435,19 @@ pub enum TypeDefinition {
     InputObjectTypeDefinition(InputObjectTypeDefinition),
 }
 
+impl Display for TypeDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ScalarTypeDefinition(def) => def.fmt(f),
+            Self::ObjectTypeDefinition(def) => def.fmt(f),
+            Self::InterfaceTypeDefinition(def) => def.fmt(f),
+            Self::UnionTypeDefinition(def) => def.fmt(f),
+            Self::EnumTypeDefinition(def) => def.fmt(f),
+            Self::InputObjectTypeDefinition(def) => def.fmt(f),
+        }
+    }
+}
+
 impl From<TypeDefinition> for Name {
     fn from(def: TypeDefinition) -> Self {
         match def {
@@ -408,6 +504,14 @@ pub struct ScalarTypeDefinition {
     directives: Option<Directives>,
 }
 
+impl Display for ScalarTypeDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        self.name.fmt(f)?;
+        write_option(self.directives.as_ref(), f)
+    }
+}
+
 impl From<ScalarTypeDefinition> for Name {
     fn from(def: ScalarTypeDefinition) -> Self {
         def.name
@@ -460,6 +564,13 @@ pub struct ScalarTypeExtension {
     directives: Option<Directives>,
 }
 
+impl Display for ScalarTypeExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(f)?;
+        write_option(self.directives.as_ref(), f)
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for ScalarTypeExtension {
     type Error = Error<Rule>;
 
@@ -483,6 +594,18 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ScalarTypeExtension {
 /// http://spec.graphql.org/draft/#ImplementsInterfaces
 pub struct ImplementsInterfaces(Vec<NamedType>);
 
+impl Display for ImplementsInterfaces {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, interface) in self.0.iter().enumerate() {
+            interface.fmt(f)?;
+            if i != self.0.len() {
+                f.write_str(" & ")?;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for ImplementsInterfaces {
     type Error = Error<Rule>;
 
@@ -500,6 +623,12 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ImplementsInterfaces {
 ///
 /// http://spec.graphql.org/draft/#Description
 pub struct Description(pub String);
+
+impl Display for Description {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Description {
     type Error = Error<Rule>;
@@ -522,6 +651,23 @@ pub enum GraphQLType {
     NamedType(NamedType),
     ListType(Box<GraphQLType>),
     NonNullType(Box<GraphQLType>),
+}
+
+impl Display for GraphQLType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NamedType(named_type) => named_type.fmt(f),
+            Self::ListType(graphql_type) => {
+                f.write_str("[")?;
+                graphql_type.fmt(f)?;
+                f.write_str("]")
+            }
+            Self::NonNullType(graphql_type) => {
+                graphql_type.fmt(f)?;
+                f.write_str("!")
+            }
+        }
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for GraphQLType {
@@ -547,6 +693,16 @@ impl<'a> TryFrom<Pair<'a, Rule>> for GraphQLType {
 /// http://spec.graphql.org/draft/#ArgumentsDefinition
 pub struct ArgumentsDefinition(pub Vec<InputValueDefinition>);
 
+impl Display for ArgumentsDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("(")?;
+        for argument in &self.0 {
+            argument.fmt(f)?;
+        }
+        f.write_str(")")
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for ArgumentsDefinition {
     type Error = Error<Rule>;
 
@@ -566,6 +722,13 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ArgumentsDefinition {
 /// http://spec.graphql.org/draft/#Alias
 pub struct Alias {
     name: Name,
+}
+
+impl Display for Alias {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(f)?;
+        f.write_str(":")
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Alias {
@@ -589,6 +752,16 @@ pub struct Field {
     variable_definitions: Option<VariableDefinitions>,
     directives: Option<Directives>,
     selection_set: Option<SelectionSet>,
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.alias.as_ref(), f)?;
+        self.name.fmt(f)?;
+        write_option(self.variable_definitions.as_ref(), f)?;
+        write_option(self.directives.as_ref(), f)?;
+        write_option(self.selection_set.as_ref(), f)
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Field {
@@ -641,6 +814,17 @@ pub struct FieldDefinition {
     pub directives: Option<Directives>,
 }
 
+impl Display for FieldDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        self.name.fmt(f)?;
+        write_option(self.arguments_definition.as_ref(), f)?;
+        f.write_str(": ")?;
+        self.graphql_type.fmt(f)?;
+        write_option(self.directives.as_ref(), f)
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for FieldDefinition {
     type Error = Error<Rule>;
 
@@ -673,6 +857,17 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FieldDefinition {
 /// http://spec.graphql.org/draft/#FieldsDefinition
 pub struct FieldsDefinition(pub Vec<FieldDefinition>);
 
+impl Display for FieldsDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{")?;
+        for definition in &self.0 {
+            definition.fmt(f)?;
+            f.write_str(" ")?;
+        }
+        f.write_str("}")
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for FieldsDefinition {
     type Error = Error<Rule>;
 
@@ -695,6 +890,16 @@ pub struct ObjectTypeDefinition {
     pub implements_interfaces: Option<ImplementsInterfaces>,
     pub directives: Option<Directives>,
     pub fields_definition: Option<FieldsDefinition>,
+}
+
+impl Display for ObjectTypeDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        self.name.fmt(f)?;
+        write_option(self.implements_interfaces.as_ref(), f)?;
+        write_option(self.directives.as_ref(), f)?;
+        write_option(self.fields_definition.as_ref(), f)
+    }
 }
 
 impl From<ObjectTypeDefinition> for Name {
@@ -759,11 +964,22 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ObjectTypeDefinition {
 ///
 /// http://spec.graphql.org/draft/#InterfaceTypeDefinition
 pub struct InterfaceTypeDefinition {
-    description: Option<Description>,
-    name: Name,
-    implements_interfaces: Option<ImplementsInterfaces>,
-    directives: Option<Directives>,
-    fields_definition: Option<FieldsDefinition>,
+    pub description: Option<Description>,
+    pub name: Name,
+    pub implements_interfaces: Option<ImplementsInterfaces>,
+    pub directives: Option<Directives>,
+    pub fields_definition: Option<FieldsDefinition>,
+}
+
+impl Display for InterfaceTypeDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        f.write_str(" interface ")?;
+        self.name.fmt(f)?;
+        write_option(self.implements_interfaces.as_ref(), f)?;
+        write_option(self.directives.as_ref(), f)?;
+        write_option(self.fields_definition.as_ref(), f)
+    }
 }
 
 impl From<InterfaceTypeDefinition> for Name {
@@ -819,6 +1035,16 @@ pub struct UnionTypeDefinition {
     union_member_types: Option<UnionMemberTypes>,
 }
 
+impl Display for UnionTypeDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        f.write_str(" union ")?;
+        self.name.fmt(f)?;
+        write_option(self.directives.as_ref(), f)?;
+        write_option(self.union_member_types.as_ref(), f)
+    }
+}
+
 impl From<UnionTypeDefinition> for Name {
     fn from(def: UnionTypeDefinition) -> Self {
         def.name
@@ -856,6 +1082,18 @@ impl<'a> TryFrom<Pair<'a, Rule>> for UnionTypeDefinition {
 /// http://spec.graphql.org/draft/#UnionMemberTypes
 pub struct UnionMemberTypes(pub Vec<NamedType>);
 
+impl Display for UnionMemberTypes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, member_type) in self.0.iter().enumerate() {
+            member_type.fmt(f)?;
+            if i != self.0.len() - 1 {
+                f.write_str(" | ")?;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for UnionMemberTypes {
     type Error = Error<Rule>;
 
@@ -878,6 +1116,16 @@ pub struct EnumTypeDefinition {
     name: Name,
     directives: Option<Directives>,
     enum_values_definition: Option<EnumValuesDefinition>,
+}
+
+impl Display for EnumTypeDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        f.write_str(" enum ")?;
+        self.name.fmt(f)?;
+        write_option(self.directives.as_ref(), f)?;
+        write_option(self.enum_values_definition.as_ref(), f)
+    }
 }
 
 impl From<EnumTypeDefinition> for Name {
@@ -917,6 +1165,16 @@ impl<'a> TryFrom<Pair<'a, Rule>> for EnumTypeDefinition {
 /// http://spec.graphql.org/draft/#EnumValuesDefinition
 pub struct EnumValuesDefinition(pub Vec<EnumValueDefinition>);
 
+impl Display for EnumValuesDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{")?;
+        for value in &self.0 {
+            value.fmt(f)?;
+        }
+        f.write_str("}")
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for EnumValuesDefinition {
     type Error = Error<Rule>;
 
@@ -938,6 +1196,14 @@ pub struct EnumValueDefinition {
     description: Option<Description>,
     enum_value: EnumValue,
     directives: Option<Directives>,
+}
+
+impl Display for EnumValueDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        self.enum_value.fmt(f)?;
+        write_option(self.directives.as_ref(), f)
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for EnumValueDefinition {
@@ -967,6 +1233,12 @@ impl<'a> TryFrom<Pair<'a, Rule>> for EnumValueDefinition {
 /// http://spec.graphql.org/draft/#EnumValue
 pub struct EnumValue(pub Name);
 
+impl Display for EnumValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for EnumValue {
     type Error = Error<Rule>;
 
@@ -984,6 +1256,15 @@ pub struct InputObjectTypeDefinition {
     name: Name,
     directives: Option<Directives>,
     input_fields_definition: Option<InputFieldsDefinition>,
+}
+
+impl Display for InputObjectTypeDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        self.name.fmt(f)?;
+        write_option(self.directives.as_ref(), f)?;
+        write_option(self.input_fields_definition.as_ref(), f)
+    }
 }
 
 impl From<InputObjectTypeDefinition> for Name {
@@ -1033,6 +1314,16 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InputObjectTypeDefinition {
 /// http://spec.graphql.org/draft/#InputObjectTypeDefinition
 pub struct InputFieldsDefinition(pub Vec<InputValueDefinition>);
 
+impl Display for InputFieldsDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{")?;
+        for field in &self.0 {
+            field.fmt(f)?;
+        }
+        f.write_str("}")
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for InputFieldsDefinition {
     type Error = Error<Rule>;
 
@@ -1056,6 +1347,16 @@ pub struct InputValueDefinition {
     graphql_type: GraphQLType,
     default_value: Option<DefaultValue>,
     directives: Option<Directives>,
+}
+
+impl Display for InputValueDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        f.write_str(": ")?;
+        self.graphql_type.fmt(f)?;
+        write_option(self.default_value.as_ref(), f)?;
+        write_option(self.directives.as_ref(), f)
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for InputValueDefinition {
@@ -1092,6 +1393,12 @@ impl<'a> TryFrom<Pair<'a, Rule>> for InputValueDefinition {
 
 pub struct DefaultValue(pub Value);
 
+impl Display for DefaultValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0.to_string())
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for DefaultValue {
     type Error = Error<Rule>;
 
@@ -1102,6 +1409,16 @@ impl<'a> TryFrom<Pair<'a, Rule>> for DefaultValue {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListValue(Vec<Value>);
+
+impl Display for ListValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for value in &self.0 {
+            value.fmt(f)?;
+            f.write_str(" ")?;
+        }
+        Ok(())
+    }
+}
 
 impl<'a> TryFrom<Pair<'a, Rule>> for ListValue {
     type Error = Error<Rule>;
@@ -1119,6 +1436,14 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ListValue {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ObjectValue(pub ObjectField);
 
+impl Display for ObjectValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{")?;
+        f.write_str(&self.0.to_string())?;
+        f.write_str("}")
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for ObjectValue {
     type Error = Error<Rule>;
 
@@ -1135,6 +1460,14 @@ pub struct ObjectField {
     value: Value,
 }
 
+impl Display for ObjectField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.name.to_string())?;
+        f.write_str(": ")?;
+        f.write_str(&self.value.to_string())
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for ObjectField {
     type Error = Error<Rule>;
 
@@ -1149,6 +1482,12 @@ impl<'a> TryFrom<Pair<'a, Rule>> for ObjectField {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Variable(pub Name);
+
+impl Display for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0.to_string())
+    }
+}
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Variable {
     type Error = Error<Rule>;
@@ -1169,6 +1508,22 @@ pub enum Value {
     Enum(Name),
     List(ListValue),
     Object(Box<ObjectValue>),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Variable(item) => f.write_str(&item.to_string()),
+            Self::Int(int) => f.write_str(&int.to_string()),
+            Self::Float(float) => f.write_str(&float.to_string()),
+            Self::String(string) => f.write_str(string),
+            Self::Boolean(bool) => f.write_str(&bool.to_string()),
+            Self::Null => f.write_str("null"),
+            Self::Enum(name) => f.write_str(&name.to_string()),
+            Self::List(list_value) => f.write_str(&list_value.to_string()),
+            Self::Object(object_value) => f.write_str(&object_value.to_string()),
+        }
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Value {
@@ -1233,6 +1588,26 @@ pub enum UnionTypeExtension {
     },
 }
 
+impl Display for UnionTypeExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WithMemberTypes {
+                name,
+                directives,
+                member_types,
+            } => {
+                name.fmt(f)?;
+                write_option(directives.as_ref(), f)?;
+                member_types.fmt(f)
+            }
+            Self::WithoutMemberTypes { name, directives } => {
+                name.fmt(f)?;
+                directives.fmt(f)
+            }
+        }
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for UnionTypeExtension {
     type Error = Error<Rule>;
 
@@ -1284,6 +1659,40 @@ pub enum InterfaceTypeExtension {
         implements_interfaces: Option<ImplementsInterfaces>,
         directives: Directives,
     },
+}
+
+impl Display for InterfaceTypeExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WithDefinedFields {
+                name,
+                implements_interfaces,
+                directives,
+                fields_definition,
+            } => {
+                name.fmt(f)?;
+                write_option(implements_interfaces.as_ref(), f)?;
+                write_option(directives.as_ref(), f)?;
+                fields_definition.fmt(f)
+            }
+            Self::WithDirectives {
+                name,
+                implements_interfaces,
+                directives,
+            } => {
+                name.fmt(f)?;
+                write_option(implements_interfaces.as_ref(), f)?;
+                directives.fmt(f)
+            }
+            Self::WithImplementedInterfaces {
+                name,
+                implements_interfaces,
+            } => {
+                name.fmt(f)?;
+                implements_interfaces.fmt(f)
+            }
+        }
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for InterfaceTypeExtension {
@@ -1350,6 +1759,40 @@ pub enum ObjectTypeExtension {
     },
 }
 
+impl Display for ObjectTypeExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WithFields {
+                name,
+                implements_interfaces,
+                directives,
+                fields_definition,
+            } => {
+                name.fmt(f)?;
+                write_option(implements_interfaces.as_ref(), f)?;
+                write_option(directives.as_ref(), f)?;
+                fields_definition.fmt(f)
+            }
+            Self::WithDirectives {
+                name,
+                implements_interfaces,
+                directives,
+            } => {
+                name.fmt(f)?;
+                write_option(implements_interfaces.as_ref(), f)?;
+                directives.fmt(f)
+            }
+            Self::WithImplementsInterfaces {
+                name,
+                implements_interfaces,
+            } => {
+                name.fmt(f)?;
+                implements_interfaces.fmt(f)
+            }
+        }
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for ObjectTypeExtension {
     type Error = Error<Rule>;
 
@@ -1408,6 +1851,26 @@ pub enum EnumTypeExtension {
     },
 }
 
+impl Display for EnumTypeExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WithEnumValuesDefinition {
+                name,
+                directives,
+                enum_values_definition,
+            } => {
+                name.fmt(f)?;
+                write_option(directives.as_ref(), f)?;
+                enum_values_definition.fmt(f)
+            }
+            Self::WithDirectives { name, directives } => {
+                name.fmt(f)?;
+                directives.fmt(f)
+            }
+        }
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for EnumTypeExtension {
     type Error = Error<Rule>;
 
@@ -1446,6 +1909,26 @@ pub enum InputObjectTypeExtension {
     },
 }
 
+impl Display for InputObjectTypeExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WithInputFields {
+                name,
+                directives,
+                input_fields_definition,
+            } => {
+                name.fmt(f)?;
+                write_option(directives.as_ref(), f)?;
+                input_fields_definition.fmt(f)
+            }
+            Self::WithDirectives { name, directives } => {
+                name.fmt(f)?;
+                directives.fmt(f)
+            }
+        }
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for InputObjectTypeExtension {
     type Error = Error<Rule>;
 
@@ -1480,6 +1963,19 @@ pub enum TypeExtension {
     UnionTypeExtension(UnionTypeExtension),
     EnumTypeExtension(EnumTypeExtension),
     InputObjectTypeExtension(InputObjectTypeExtension),
+}
+
+impl Display for TypeExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ScalarTypeExtension(ext) => ext.fmt(f),
+            Self::ObjectTypeExtension(ext) => ext.fmt(f),
+            Self::InterfaceTypeExtension(ext) => ext.fmt(f),
+            Self::UnionTypeExtension(ext) => ext.fmt(f),
+            Self::EnumTypeExtension(ext) => ext.fmt(f),
+            Self::InputObjectTypeExtension(ext) => ext.fmt(f),
+        }
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for TypeExtension {
@@ -1518,6 +2014,20 @@ pub struct DirectiveDefinition {
     arguments_definition: Option<ArgumentsDefinition>,
     repeatable: bool,
     directive_locations: DirectiveLocations,
+}
+
+impl Display for DirectiveDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_option(self.description.as_ref(), f)?;
+        f.write_str(" directive @ ")?;
+        f.write_str(&self.name.to_string())?;
+        write_option(self.arguments_definition.as_ref(), f)?;
+        if self.repeatable {
+            f.write_str(" repeatable ")?;
+        };
+        f.write_str("on ")?;
+        f.write_str(&self.directive_locations.to_string())
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveDefinition {
@@ -1562,6 +2072,16 @@ impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveDefinition {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DirectiveLocations(pub Vec<DirectiveLocation>);
 
+impl Display for DirectiveLocations {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for location in &self.0 {
+            location.fmt(f)?;
+            f.write_str(" ")?;
+        }
+        Ok(())
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveLocations {
     type Error = Error<Rule>;
 
@@ -1578,6 +2098,15 @@ impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveLocations {
 pub enum DirectiveLocation {
     ExecutableDirectiveLocation(ExecutableDirectiveLocation),
     TypeSystemDirectiveLocation(TypeSystemDirectiveLocation),
+}
+
+impl Display for DirectiveLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ExecutableDirectiveLocation(location) => location.fmt(f),
+            Self::TypeSystemDirectiveLocation(location) => location.fmt(f),
+        }
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for DirectiveLocation {
@@ -1608,6 +2137,21 @@ pub enum ExecutableDirectiveLocation {
     FragmentSpread,
     InlineFragment,
     VariableDefinition,
+}
+
+impl Display for ExecutableDirectiveLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Query => "QUERY",
+            Self::Mutation => "MUTATION",
+            Self::Subscription => "SUBSCRIPTION",
+            Self::Field => "FIELD",
+            Self::FragmentDefinition => "FRAGMENT_DEFINITION",
+            Self::FragmentSpread => "FRAGMENT_SPREAD",
+            Self::InlineFragment => "INLINE_FRAGMENT",
+            Self::VariableDefinition => "VARIABLE_DEFINITION",
+        })
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for ExecutableDirectiveLocation {
@@ -1644,6 +2188,25 @@ pub enum TypeSystemDirectiveLocation {
     InputFieldDefinition,
 }
 
+impl Display for TypeSystemDirectiveLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Schema => "SCHEMA",
+            Self::Scalar => "SCALAR",
+            Self::Object => "OBJECT",
+            Self::FieldDefinition => "FIELD_DEFINITION",
+            Self::ArgumentDescription => "ARGUMENT_DESCRIPTION",
+            Self::Interface => "INTERFACE",
+            Self::Union => "UNION",
+            Self::Enum => "ENUM",
+            Self::EnumValue => "ENUM_VALUE",
+            Self::InputValue => "INPUT_VALUE",
+            Self::InputObject => "INPUT_OBJECT",
+            Self::InputFieldDefinition => "INPUT_FIELD_DEFINITION",
+        })
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for TypeSystemDirectiveLocation {
     type Error = Error<Rule>;
 
@@ -1672,6 +2235,16 @@ pub struct VariableDefinition {
     graphql_type: GraphQLType,
     default_value: Option<DefaultValue>,
     directives: Option<Directives>,
+}
+
+impl Display for VariableDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(" ")?;
+        f.write_str(&self.variable.to_string())?;
+        write_option(self.default_value.as_ref(), f)?;
+        write_option(self.directives.as_ref(), f)?;
+        f.write_str(" ")
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for VariableDefinition {
@@ -1703,6 +2276,17 @@ impl<'a> TryFrom<Pair<'a, Rule>> for VariableDefinition {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct VariableDefinitions(pub Vec<VariableDefinition>);
 
+impl Display for VariableDefinitions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("(")?;
+        for string in self.0.iter().map(ToString::to_string) {
+            f.write_str(&string)?;
+        }
+        f.write_str(")")?;
+        Ok(())
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for VariableDefinitions {
     type Error = Error<Rule>;
 
@@ -1724,6 +2308,28 @@ pub struct OperationDefinition {
     pub variable_definitions: Option<VariableDefinitions>,
     pub directives: Option<Directives>,
     pub selection_set: SelectionSet,
+}
+
+fn write_option<T: ToString>(item: Option<T>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    if let Some(x) = item {
+        f.write_str(&x.to_string())
+    } else {
+        Ok(())
+    }
+}
+
+impl Display for OperationDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self.operation_type.token {
+            OperationType::Mutation => "mutation ",
+            OperationType::Query => "query ",
+            OperationType::Subscription => "subscription ",
+        })?;
+        write_option(self.name.as_ref(), f)?;
+        write_option(self.variable_definitions.as_ref(), f)?;
+        write_option(self.directives.as_ref(), f)?;
+        self.selection_set.fmt(f)
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for OperationDefinition {
@@ -1752,6 +2358,12 @@ pub struct FragmentName {
     pub name: Name,
 }
 
+impl Display for FragmentName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(f)
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for FragmentName {
     type Error = Error<Rule>;
 
@@ -1765,6 +2377,12 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FragmentName {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TypeCondition {
     named_type: NamedType,
+}
+
+impl Display for TypeCondition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.named_type.fmt(f)
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for TypeCondition {
@@ -1782,6 +2400,14 @@ impl<'a> TryFrom<Pair<'a, Rule>> for TypeCondition {
 pub struct FragmentSpread {
     fragment_name: FragmentName,
     directives: Option<Directives>,
+}
+
+impl Display for FragmentSpread {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("...")?;
+        self.fragment_name.fmt(f)?;
+        write_option(self.directives.as_ref(), f)
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for FragmentSpread {
@@ -1804,6 +2430,15 @@ pub struct InlineFragment {
     type_condition: Option<TypeCondition>,
     directives: Option<Directives>,
     selection_set: SelectionSet,
+}
+
+impl Display for InlineFragment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("...")?;
+        write_option(self.type_condition.as_ref(), f)?;
+        write_option(self.directives.as_ref(), f)?;
+        self.selection_set.fmt(f)
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for InlineFragment {
@@ -1832,6 +2467,16 @@ pub enum Selection {
     InlineFragment(InlineFragment),
 }
 
+impl Display for Selection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Field(field) => field.fmt(f),
+            Self::FragmentSpread(fragment_spread) => fragment_spread.fmt(f),
+            Self::InlineFragment(inline_fragment) => inline_fragment.fmt(f),
+        }
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for Selection {
     type Error = Error<Rule>;
 
@@ -1849,6 +2494,17 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Selection {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SelectionSet(Vec<Selection>);
+
+impl Display for SelectionSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{")?;
+        for selection in &self.0 {
+            selection.fmt(f)?;
+            f.write_str(" ")?;
+        }
+        f.write_str("}")
+    }
+}
 
 impl<'a> TryFrom<Pair<'a, Rule>> for SelectionSet {
     type Error = Error<Rule>;
@@ -1877,6 +2533,16 @@ pub struct FragmentDefinition {
     selection_set: SelectionSet,
 }
 
+impl Display for FragmentDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("fragment ")?;
+        self.fragment_name.fmt(f)?;
+        self.type_condition.fmt(f)?;
+        write_option(self.directives.as_ref(), f)?;
+        self.selection_set.fmt(f)
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for FragmentDefinition {
     type Error = Error<Rule>;
 
@@ -1898,6 +2564,15 @@ impl<'a> TryFrom<Pair<'a, Rule>> for FragmentDefinition {
 pub enum ExecutableDefinition {
     OperationDefinition(OperationDefinition),
     FragmentDefinition(FragmentDefinition),
+}
+
+impl Display for ExecutableDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OperationDefinition(def) => def.fmt(f),
+            Self::FragmentDefinition(def) => def.fmt(f),
+        }
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for ExecutableDefinition {
@@ -1922,6 +2597,16 @@ pub enum TypeSystemDefinition {
     SchemaDefinition(SchemaDefinition),
     TypeDefinition(TypeDefinition),
     DirectiveDefinition(DirectiveDefinition),
+}
+
+impl Display for TypeSystemDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SchemaDefinition(schema_definition) => schema_definition.fmt(f),
+            Self::TypeDefinition(type_definition) => type_definition.fmt(f),
+            Self::DirectiveDefinition(directive_definition) => directive_definition.fmt(f),
+        }
+    }
 }
 
 impl<'a> TryFrom<Pair<'a, Rule>> for TypeSystemDefinition {
@@ -1955,6 +2640,21 @@ pub enum SchemaExtension {
     },
 }
 
+impl Display for SchemaExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WithDirectives { directives } => f.write_str(&directives.to_string()),
+            Self::WithRootOperationTypeDefinition {
+                directives,
+                root_operation_type_definition,
+            } => {
+                write_option(directives.as_ref(), f)?;
+                f.write_str(&root_operation_type_definition.to_string())
+            }
+        }
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for SchemaExtension {
     type Error = Error<Rule>;
 
@@ -1985,6 +2685,15 @@ pub enum TypeSystemExtension {
     TypeExtension(TypeExtension),
 }
 
+impl Display for TypeSystemExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SchemaExtension(schema_extension) => schema_extension.fmt(f),
+            Self::TypeExtension(type_extension) => type_extension.fmt(f),
+        }
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for TypeSystemExtension {
     type Error = Error<Rule>;
 
@@ -2009,6 +2718,16 @@ pub enum Definition {
     TypeSystemExtension(TypeSystemExtension),
 }
 
+impl Display for Definition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ExecutableDefinition(def) => def.fmt(f),
+            Self::TypeSystemDefinition(def) => def.fmt(f),
+            Self::TypeSystemExtension(def) => def.fmt(f),
+        }
+    }
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for Definition {
     type Error = Error<Rule>;
 
@@ -2031,6 +2750,20 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Definition {
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub struct Document(pub Vec<Definition>);
+
+impl Display for Document {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for item in self
+            .0
+            .iter()
+            .map(ToString::to_string)
+            .map(|prev| prev + "\n")
+        {
+            f.write_str(&item)?;
+        }
+        Ok(())
+    }
+}
 
 impl<'a> TryFrom<Pair<'a, Rule>> for Document {
     type Error = Error<Rule>;
